@@ -34,11 +34,14 @@ org 0x002B
 	ljmp Timer2_ISR
 
 ;              1234567890123456    <- This helps determine the location of the counter
-title:     db 'StxxScxx  xxx-xx', 0
-blank:     db 'xxx  xx   xxx xx', 0
 
-start:     db 'By   Press Start', 0 
-start1:    db 'Syafiq          ', 0
+start:     db 'SBFF Press Start', 0 
+Blank:     db '                ', 0
+Values:    db 'State:', 0
+Values1:   db 'Runt:', 0
+Values2:   db 'Run:', 0
+Blank1:    db ' ', 0
+
 cseg
 ; These 'equ' must match the hardware wiring
 LCD_RS equ P1.3
@@ -270,12 +273,29 @@ Timer2_ISR:
 	add a, #1
 	da a
 	mov sec, a
-	cjne a, #0x99, Timer2_ISR_done
+	cjne a, #0x99, runtimeinc
 	mov sec, #0
 	
-	setb s_flag
-	
+runtimeinc:
+	mov a, runtime
+	add a, #1
+	da a
+	mov runtime, a
+	cjne a, #0x99, Timer2_ISR_done1
+	mov runtime, #0	
+	mov a, runtime+1
+	add a, #1
+	da a
+	mov runtime+1, a
+	cjne a, #0x99, Timer2_ISR_done1	
+	mov runtime+1, #0
+
 Timer2_ISR_done:
+	pop acc
+	pop psw
+	reti
+
+Timer2_ISR_done1:
 	pop acc
 	pop psw
 	reti
@@ -285,6 +305,8 @@ main:
 	lcall Init_All
     lcall LCD_4BIT
     mov sec, #0
+    mov runtime, #0
+    mov runtime+1, #0
     mov temp_soak, #0x50 ;I hate the 8051 -> 220 and 150 greator than 8 bits so must use 16 bits
     mov temp_soak+1, #0x01
 	mov time_soak, #0x60
@@ -292,43 +314,71 @@ main:
 	mov Temp_refl+1, #0x02
 	mov Time_refl, #0x45
 	mov Temp_cool, #0x60
-	mov FSM1_state, #0
+	mov FSM1_state, #0x00
 	mov temp, #0x00
 	mov temp+1, #0x00
 	
     
     ; initial messages in LCD
-	Set_Cursor(1, 1)
-    Send_Constant_String(#Title)
-	Set_Cursor(2, 1)
-    Send_Constant_String(#blank)
+;   	Set_Cursor(1, 1)
+ ;   Send_Constant_String(#Title)
+;	Set_Cursor(2, 1)
+ ;   Send_Constant_String(#blank)
 	
 Forever:
+BeginMenu:
+	Set_Cursor(1,1)
+	Send_Constant_String(#Start)		
+	Set_Cursor(2,1)
+	Display_BCD(temp_soak+1)
+	Set_Cursor(2,3)
+	Display_BCD(temp_soak)
+	Set_Cursor(2,6)
+	Display_BCD(time_soak)
+	Set_Cursor(2,10)
+	Display_BCD(Temp_refl+1)
+	Set_Cursor(2,12)
+	Display_BCD(Temp_refl)
+	Set_Cursor(2,15)
+	Display_BCD(Time_refl)
+	Set_Cursor(2,5)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(2,8)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(2,9)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(2,14)
+	Send_Constant_String(#Blank1)	
+ljmp NewDisplayeEnd
 FSM1:
+	Set_Cursor(1,1)
+	Send_Constant_String(#Values)
+	Set_Cursor(2,1)
+	Send_Constant_String(#Values1)
+	Set_Cursor(2,11)
+	Send_Constant_String(#Values2)
+	Set_Cursor(1,9)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(1,10)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(2,10)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(1,16)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(1,7)
+	Display_BCD(FSM1_state)
+	Set_Cursor(1,12)
+	Display_BCD(temp+1)
+	Set_Cursor(1,14)
+	Display_BCD(temp)
+	Set_Cursor(2,6)
+	Display_BCD(runtime+1)
+	Set_Cursor(2,8)
+	Display_BCD(runtime)
+	Set_Cursor(2,15)
+	Display_BCD(sec)
 
-Set_Cursor(1,3)
-Display_BCD(FSM1_state)
-Set_Cursor(1,7)
-Display_BCD(sec)
-Set_Cursor(1,15)
-Display_BCD(pwm)
-Set_Cursor(1,10)
-Display_BCD(temp+1)
-Set_Cursor(1,12)
-Display_BCD(temp)
-Set_Cursor(2,1)
-Display_BCD(temp_soak+1)
-Set_Cursor(2,3)
-Display_BCD(temp_soak)
-Set_Cursor(2,6)
-Display_BCD(time_soak)
-Set_Cursor(2,11)
-Display_BCD(Temp_refl+1)
-Set_Cursor(2,12)
-Display_BCD(Temp_refl)
-Set_Cursor(2,15)
-Display_BCD(Time_refl)
-
+NewDisplayeEnd:
 
 TimeSoakbutton:
 	lcall ADC_to_PB
@@ -363,20 +413,17 @@ Tempsoakbutton:
 	mov c, PB3
 	jc Tempreflbutton
     mov a, temp_soak
-    Wait_Milli_Seconds(#99)
+    Wait_Milli_Seconds(#50)
     add a, #1
     da a
     mov temp_soak, a
-    cjne a, #0x00, Tempsoakbuttondone
+    cjne a, #0x00, Tempreflbutton
     mov a, temp_soak+1
     add a, #1
     da a
     mov temp_soak+1, a
-    cjne a, #0x10, Tempsoakbuttondone
+    cjne a, #0x10, Tempreflbutton
     mov temp_soak+1, #0x00
-    
-Tempsoakbuttondone:
-    ljmp FSM1
     
 Tempreflbutton:
 	lcall ADC_to_PB
@@ -387,16 +434,13 @@ Tempreflbutton:
     add a, #1
     da a
     mov Temp_refl, a
-    cjne a, #0x00, Tempreflbuttondone
+    cjne a, #0x00, restart
     mov a, Temp_refl+1
     add a, #1
     da a
     mov Temp_refl+1, a
-    cjne a, #0x10, Tempreflbuttondone
+    cjne a, #0x10, restart
     mov Temp_refl+1, #0x00
-    
-Tempreflbuttondone:
-    ljmp FSM1
     
 restart:
 	lcall ADC_to_PB
@@ -410,12 +454,12 @@ FSM1_state0:		;Go to state 1 if PB6 is pushed ;INTIAL;
 	mov a, FSM1_state
 	cjne a, #0, FSM1_state1
 	mov pwm, #0
+	mov runtime, #0
+	mov runtime+1, #0
 	lcall ADC_to_PB
 	mov c, PB7
 	jc FSM1_state1
 	mov FSM1_state, #1
-FSM1_state0_done:
-	ljmp FSM1
 	
 FSM1_state1:		;Stay in state 1 if temp<=150 ;RAMP TO SOAK;
 					;go to state 2 if temp > 150
@@ -482,13 +526,12 @@ FSM1_state5:		;Stay in state 5 if temp >= 60 ;cooling;
 	mov pwm, #0
 	clr c
 	mov a, Temp_cool
-	subb a, sec
-	jnc FSM1_state5_done
+	subb a, temp
+	jc FSM1_state5_done
 	mov FSM1_state, #0
 FSM1_state5_done:
-	ljmp FSM1
+	ljmp BeginMenu
 
 	ljmp Forever
 	
 END
-	
