@@ -54,6 +54,7 @@ PWM_OUT EQU P1.0
 
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
+$include(math32.inc)
 $LIST
 
 BSEG
@@ -84,6 +85,7 @@ temp: ds 5
 time: ds 5
 pwm_counter: ds 1
 runtime: ds 2
+temp_safety: ds 1
 
 x: ds 4
 y: ds 4
@@ -119,12 +121,11 @@ Init_All:
 	; Initialize and start the ADC:
 	
 	; AIN0 is connected to P1.7.  Configure P1.7 as input.
-	orl	P1M1, #0b10000000
-	anl	P1M2, #0b01111111
+	orl	P1M1, #0b10000010
+	anl	P1M2, #0b01111101
 	
 	; AINDIDS select if some pins are analog inputs or digital I/O:
-	mov AINDIDS, #0x00 ; Disable all analog inputs
-	orl AINDIDS, #0b00000001 ; Using AIN0
+	orl AINDIDS, #0b10000010
 	orl ADCCON1, #0x01 ; Enable ADC
 	
 	; Initialize timer 2 for periodic interrupts
@@ -143,6 +144,13 @@ Init_All:
 	setb EA ; Enable global interrupts
 	
 	ret
+	
+putchar:
+    jnb TI, putchar
+    clr TI
+    mov SBUF, a
+    ret
+
 	
 wait_1ms:
 	clr	TR0 ; Stop timer 0
@@ -300,11 +308,76 @@ Timer2_ISR_done1:
 	pop psw
 	reti
 
+tempcalc:
+	anl ADCCON0, #0xF0
+	orl ADCCON0, #0x07 ; Select channel 7
+	clr ADCF
+	setb ADCS ;  ADC start trigger signal
+    jnb ADCF, $ ; Wait for conversion complete
+    
+    ; Read the ADC result and store in [R1, R0]
+    mov a, ADCRH   
+    swap a
+    push acc
+    anl a, #0x0f
+    mov R1, a
+    pop acc
+    anl a, #0xf0
+    orl a, ADCRL
+    mov R0, A
+    
+ 	mov x+0, R0
+	mov x+1, R1
+	mov x+2, #0
+	mov x+3, #0
+	Load_y(50300) ; VCC voltage measured
+	lcall mul32
+	Load_y(4095) ; 2^12-1
+	lcall div32
+	
+	Load_y(100)
+	lcall mul32
+	Load_y(2730000) ;floating point conversion (idk search this up)
+	lcall sub32
+	lcall hex2bcd
+	
+	mov R2, #99
+	lcall waitms
+
+	
+    ret
+    
+Send_BCD mac
+	push ar0
+	mov r0, %0
+	lcall ?Send_BCD
+	pop ar0
+endmac
+
+?Send_BCD:
+	push acc
+	; Write most significant digit
+	mov a, r0
+	swap a
+	anl a, #0fh
+	orl a, #30h
+	
+	lcall putchar
+; write least significant digit
+	mov a, r0
+	anl a, #0fh
+	orl a, #30h
+	lcall putchar
+	pop acc
+	ret
+		
+	
 main:
 	mov sp, #0x7f
 	lcall Init_All
     lcall LCD_4BIT
     mov sec, #0
+    mov temp_safety, #0x50
     mov runtime, #0
     mov runtime+1, #0
     mov temp_soak, #0x50 ;I hate the 8051 -> 220 and 150 greator than 8 bits so must use 16 bits
@@ -317,13 +390,6 @@ main:
 	mov FSM1_state, #0x00
 	mov temp, #0x00
 	mov temp+1, #0x00
-	
-    
-    ; initial messages in LCD
-;   	Set_Cursor(1, 1)
- ;   Send_Constant_String(#Title)
-;	Set_Cursor(2, 1)
- ;   Send_Constant_String(#blank)
 	
 Forever:
 BeginMenu:
@@ -367,25 +433,40 @@ FSM1:
 	Send_Constant_String(#Blank1)
 	Set_Cursor(1,7)
 	Display_BCD(FSM1_state)
-	Set_Cursor(1,12)
-	Display_BCD(temp+1)
+	Set_Cursor(1,10)
+	Display_BCD(bcd+4)	
+	Display_BCD(bcd+2)
+;	Display_char(#'.')
+;	Display_BCD(bcd+1)
+;	Display_BCD(bcd+0)
 	Set_Cursor(1,14)
-	Display_BCD(temp)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(1,15)
+	Send_Constant_String(#Blank1)
 	Set_Cursor(2,6)
 	Display_BCD(runtime+1)
 	Set_Cursor(2,8)
 	Display_BCD(runtime)
 	Set_Cursor(2,15)
 	Display_BCD(sec)
+	Set_Cursor(1,14)
+	
+	
 
 NewDisplayeEnd:
+	lcall tempcalc
+
+	Send_BCD (bcd+4)
+	Send_BCD (bcd+2)
+	mov a, #'\n'
+	lcall putchar
 
 TimeSoakbutton:
 	lcall ADC_to_PB
 	mov c, PB2
 	jc Timereflbutton
 	mov a, time_soak
-	Wait_Milli_Seconds(#99)
+;	Wait_Milli_Seconds(#99)
 	add a, #1
 	da a
 	mov time_soak, a
@@ -399,7 +480,7 @@ Timereflbutton:
 	mov c, PB0
 	jc Tempsoakbutton
 	mov a, Time_refl
-	Wait_Milli_Seconds(#99)
+;	Wait_Milli_Seconds(#99)
 	add a, #1
 	da a
 	mov Time_refl, a
@@ -413,7 +494,7 @@ Tempsoakbutton:
 	mov c, PB3
 	jc Tempreflbutton
     mov a, temp_soak
-    Wait_Milli_Seconds(#50)
+ ;   Wait_Milli_Seconds(#99)
     add a, #1
     da a
     mov temp_soak, a
@@ -430,7 +511,7 @@ Tempreflbutton:
 	mov c, PB1
 	jc restart
     mov a, Temp_refl
-    Wait_Milli_Seconds(#99)
+;    Wait_Milli_Seconds(#99)
     add a, #1
     da a
     mov Temp_refl, a
@@ -446,6 +527,7 @@ restart:
 	lcall ADC_to_PB
 	mov c, PB6
 	jc FSM1_state0
+abort:
 	mov FSM1_state, #0
 
 mov a, FSM1_state	
@@ -469,11 +551,20 @@ FSM1_state1:		;Stay in state 1 if temp<=150 ;RAMP TO SOAK;
 	mov sec, #0
     mov a, temp_soak
     clr c
-    subb a, temp
+    subb a, bcd+2
     mov a, temp_soak+1
-    subb a, temp+1
-	jnc FSM1_state1_done
+    subb a, bcd+4
+	jnc FSM1_state1_check_for_temp
 	mov FSM1_state, #2
+	ljmp FSM1_state3_done
+FSM1_state1_check_for_temp:
+	mov a, runtime
+	cjne a, #0x60, FSM1_state1_done
+	mov a, temp_safety
+	clr c
+	subb a, temp
+	jnc abort
+
 FSM1_state1_done:
 	ljmp FSM1
 
@@ -498,9 +589,9 @@ FSM1_state3:		;Stay in state 3 if temp<=220 ;RAMP TO PEAK;
 	mov time, #0
     mov a, Temp_refl
     clr c
-    subb a, temp
+    subb a, bcd+2
     mov a, Temp_refl+1
-    subb a, temp+1
+    subb a, bcd+4
 	jnc FSM1_state3_done 
 	mov FSM1_state, #4
 FSM1_state3_done:
@@ -526,7 +617,9 @@ FSM1_state5:		;Stay in state 5 if temp >= 60 ;cooling;
 	mov pwm, #0
 	clr c
 	mov a, Temp_cool
-	subb a, temp
+	subb a, bcd+2
+	mov a, Temp_refl+1
+	subb a, bcd+4
 	jc FSM1_state5_done
 	mov FSM1_state, #0
 FSM1_state5_done:
