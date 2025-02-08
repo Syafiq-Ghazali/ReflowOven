@@ -2,12 +2,12 @@ from tkinter import *
 from PIL import Image, ImageDraw, ImageTk
 import customtkinter as ctk
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import sys, time, math
 import numpy as np
-from matplotlib.figure import Figure
-import time, serial, serial.tools.list_ports
+import serial, serial.tools.list_ports
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import sys
-
+import matplotlib.ticker as ticker
 #import kconvert
 
 class MainApp:
@@ -68,6 +68,8 @@ class MainApp:
         self.middle_right_frame = ctk.CTkFrame(self.middle_frame, width = 50, height = 500, fg_color="white", corner_radius=0)
         self.middle_right_frame.pack(side=LEFT, fill=X)
         self.middle_right_frame.pack_propagate(False)
+
+        self.setup_graph()  
         
     # Right Microwave Panel
     def setup_rightframe(self):
@@ -126,29 +128,113 @@ class MainApp:
         CODE FOR THE STAGE DISPLAY 
         """
         
-        """"
-        CODE FOR THE GRAPH
         """
+        CODE FOR THE GRAPH
+        """    
+    def data_gen(self):
+        t = self.data_gen.t  # Initialize time
+        while True:
+            t += 1
+            temp = np.exp(-0.05 * t) * 100  # Example: Decaying exponential for temperature simulation
+            yield t, temp
+            
+    data_gen.t = -1
+        
+    def run(self, data):
+        t, y = data
+        self.xdata.append(t)
+        self.ydata.append(y)
+
+        if t > self.xsize:  # Scroll to the left
+            self.ax.set_xlim(t - self.xsize, t)
+
+        self.line.set_data(self.xdata, self.ydata)
+        return self.line,
+
+    def on_close_figure(self, event):
+        sys.exit(0)
+
     def setup_graph(self):
-        # Create a figure and axis
-        fig = Figure(figsize=(7, 4), dpi=100)
-        ax = fig.add_subplot(111)
-        
-        # Generate sample data (sine wave)
-        x = np.linspace(0, 10, 100)
-        y = np.sin(x)
-        ax.plot(x, y, label="Sine Wave")
-        
-        # Customize graph appearance
-        ax.set_title("Temperature vs Time")
-        ax.set_xlabel("Time (s)")
-        ax.set_ylabel("Temperature (°C)")
-        ax.legend()
-        
-        # Embed the Matplotlib figure in the Tkinter frame
-        canvas = FigureCanvasTkAgg(fig, master=self.middle_graph_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=BOTH, expand=True)
+        self.xsize = 100  # Define X-axis size
+        self.fig, self.ax = plt.subplots(figsize=(15, 10))  # Adjust width and height
+
+        # change colour 
+
+        self.ax.set_facecolor("black")  # Change background color of the graph
+        self.fig.patch.set_facecolor("black")  # Change outer figure background
+
+        # Initialize line plot
+        self.line, = self.ax.plot([], [], lw=2, label = "Temperature", color = 'red')
+        self.ax.set_ylim(0, 100)
+        self.ax.set_xlim(0, self.xsize)
+        self.ax.grid(color='grey', linewidth=0.5, )
+        self.ax.tick_params(axis='both', labelsize=18, colors='white')  
+
+        # Increase Number of Gridlines
+        self.ax.xaxis.set_major_locator(ticker.MultipleLocator(5))  # Grid every 5 seconds
+        self.ax.yaxis.set_major_locator(ticker.MultipleLocator(10))  # Grid every 10°C
+
+        # Optional: Add Minor Gridlines
+        self.ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))  # Minor grid every 1s
+        self.ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))  # Minor grid every 5°C
+
+        self.ax.grid(True, which='major', color='gray', linewidth=1)
+        self.ax.grid(True, which='minor', color='gray', linestyle=':', linewidth=0.5)
+
+
+        # Set labels
+        self.ax.set_xlabel("Time (s)", font='Arial', fontsize=25, fontweight='bold', color='white')
+        self.ax.set_ylabel("Temperature (°C)", font='Arial', fontsize=25, fontweight='bold', color='white')
+        self.ax.set_title("Reflow Oven Temperature Readings", fontsize=30, fontweight='bold', color='white')
+
+        # Initialize data lists
+        self.xdata, self.ydata = [], []
+
+
+        # Create an annotation (cursor temperature display)
+        self.annot = self.ax.annotate("", xy=(0, 0), xytext=(25, 25),
+                                    textcoords="offset points",
+                                    bbox=dict(boxstyle="round,pad=0.5", fc="pink", ec="black", lw=2),
+                                    arrowprops=dict(arrowstyle="->", color="white"),
+                                    fontsize=18, fontweight='bold')
+        self.annot.set_visible(False)  # Hide initially
+
+        # Start animation
+        self.ani = animation.FuncAnimation(
+            self.fig, self.run, self.data_gen, blit=False, interval=100, repeat=False
+        )
+
+        # Connect hover event
+        self.fig.canvas.mpl_connect("motion_notify_event", self.on_hover)
+
+        # Embed Matplotlib figure in Tkinter
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.middle_graph_frame)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill=BOTH, expand=True)
+
+    """
+    Display current temperature using cursor hover
+    """
+    def on_hover(self, event):
+        if event.inaxes == self.ax:  # Check if mouse is inside the graph area
+            x_cursor = event.xdata  # Get x-coordinate of cursor
+            if x_cursor is None or len(self.xdata) == 0:
+                return
+
+            # Find the nearest x-value in self.xdata
+            nearest_idx = min(range(len(self.xdata)), key=lambda i: abs(self.xdata[i] - x_cursor))
+            x_nearest, y_nearest = self.xdata[nearest_idx], self.ydata[nearest_idx]
+
+            # Update annotation position and text
+            self.annot.xy = (x_nearest, y_nearest)
+            self.annot.set_text(f"Time: {x_nearest:.1f}s\nTemp: {y_nearest:.1f}°C")
+            self.annot.set_visible(True)
+
+            self.fig.canvas.draw_idle()  # Redraw to show annotation
+        else:
+            self.annot.set_visible(False)
+            self.fig.canvas.draw_idle()
+
 
 if __name__ == "__main__": 
     window = ctk.CTk()
