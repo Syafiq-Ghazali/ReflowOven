@@ -43,7 +43,19 @@ class MainApp:
         self.info_img = ctk.CTkImage(Image.open("info-icon.png"), size=(25,25))
         self.temperature_img = ctk.CTkImage(Image.open("temperature-icon.png"), size=(30,30))
         self.dial_display_img = ctk.CTkImage(Image.open("dial-display.png"), size=(450,320))
-        self.dial_img = ctk.CTkImage(Image.open("dial.png"), size=(150,150))
+
+        # Store the original PIL image for rotation
+        self.original_dial_img = Image.open("dial.png").resize((1500,1500))  # Keep as PIL Image
+        self.dial_img = ctk.CTkImage(self.original_dial_img)  # Convert to CTkImage
+    
+    def rotate_dial(self, angle=0):
+        """ Rotates the dial image and updates the label """
+        rotated = self.original_dial_img.rotate(-angle, resample=Image.BICUBIC)  # Rotate PIL image
+        rotated = rotated.resize((1500, 1500), Image.LANCZOS) 
+        self.rotated_dial = ctk.CTkImage(rotated)  # Convert rotated image to CTkImage
+        self.dial.configure(image=self.rotated_dial)  # Update label
+
+        self.window.after(100, self.rotate_dial, (angle + 10) % 360)  # Rotate every 100ms
 
     #The whole Microwave
     def setup_microwave(self):
@@ -141,7 +153,7 @@ class MainApp:
         """
         CODE FOR THE STAGE DISPLAY 
         """
-        self.stage_title = ctk.CTkLabel(self.stage_frame, text="STAGE", font=("Arial", 40, "bold"), text_color="#32000C")
+        self.stage_title = ctk.CTkLabel(self.stage_frame, text="STAGE", font=("Helvetica", 40, "bold"), text_color="#32000C")
         self.stage_title.pack(side=TOP, fill=X, anchor="center", pady=(27))
 
         # Set dial_display (background image)
@@ -149,8 +161,11 @@ class MainApp:
         self.dial_display.place(relx=0.5, rely=0.585, anchor="center")
 
         # Set dial (foreground image, on top of display)
-        self.dial = ctk.CTkLabel(self.stage_frame, image=self.dial_img, text="")
+        self.dial = ctk.CTkLabel(self.stage_frame, image=self.dial_img, text="") 
         self.dial.place(relx=0.5, rely=0.585, anchor="center")
+
+        # Start rotating the dial
+        self.rotate_dial()
 
         """"
         CODE FOR THE GRAPH
