@@ -10,6 +10,18 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.ticker as ticker
 #import kconvert
 
+"""
+CONFIGURE SERIAL PORT
+"""
+ser = serial.Serial(
+port='COM5',
+    baudrate=115200,
+    parity=serial.PARITY_NONE,
+    stopbits=serial.STOPBITS_ONE,
+    bytesize=serial.EIGHTBITS
+)
+ser.isOpen()
+
 """"
 COLORSCHEME
 """
@@ -152,19 +164,26 @@ class MainApp:
         self.dial = ctk.CTkLabel(self.stage_frame, image=self.dial_img, text="")
         self.dial.place(relx=0.5, rely=0.585, anchor="center")
 
-        """"
-        CODE FOR THE GRAPH
-        """
- 
+    """"
+    CODE FOR THE GRAPH
+    """
+
+    """
+    GENERATE X AND Y AXIS VALUES
+    """
     def data_gen(self):
         t = self.data_gen.t  # Initialize time
         while True:
             t += 1
-            temp = np.exp(-0.05 * t) * 100  # Example: Decaying exponential for temperature simulation
+            temp = float(ser.readline().decode('utf-8').strip()) #Change later to take input of two values
+            #temp = np.exp(-0.05 * t) * 100  # Example: Decaying exponential for temperature simulation
             yield t, temp
             
     data_gen.t = -1
         
+    """
+    SCROLLING FUNCTION
+    """
     def run(self, data):
         t, y = data
         self.xdata.append(t)
@@ -179,6 +198,9 @@ class MainApp:
     def on_close_figure(self, event):
         sys.exit(0)
 
+    """
+    GRAPH SETUP
+    """
     def setup_graph(self):
         self.xsize = 100  # Define X-axis size
         self.fig, self.ax = plt.subplots(figsize=(15, 10))  # Adjust width and height
@@ -206,13 +228,14 @@ class MainApp:
         self.ax.grid(True, which='major', color='gray', linewidth=1)
         self.ax.grid(True, which='minor', color='gray', linestyle=':', linewidth=0.5)
 
+        hfont = {'font':'Arial', 'fontweight':'bold'}
 
         # Set labels
-        self.ax.set_xlabel("Time (s)", font='Arial', fontsize=25, fontweight='bold', color='white')
-        self.ax.set_ylabel("Temperature (°C)", font='Arial', fontsize=25, fontweight='bold', color='white')
-        self.ax.set_title("Reflow Oven Temperature Readings", fontsize=30, fontweight='bold', color='white')
+        self.ax.set_xlabel("TIME (s)", **hfont, fontsize=25, color='white')
+        self.ax.set_ylabel("TEMPERATURE (°C)", **hfont, fontsize=25, color='white')
+        self.ax.set_title("REFLOW OVEN TEMPERATURE READINGS", **hfont, fontsize=30, color='white')
 
-        # Initialize data lists
+        # Initialize data list
         self.xdata, self.ydata = [], []
 
 
@@ -220,8 +243,8 @@ class MainApp:
         self.annot = self.ax.annotate("", xy=(0, 0), xytext=(25, 25),
                                     textcoords="offset points",
                                     bbox=dict(boxstyle="round,pad=0.5", fc="pink", ec="black", lw=2),
-                                    arrowprops=dict(arrowstyle="->", color="white"),
-                                    fontsize=18, fontweight='bold')
+                                    arrowprops=dict(arrowstyle="->", color="white"), **hfont,
+                                    fontsize=18)
         self.annot.set_visible(False)  # Hide initially
 
         # Start animation
@@ -238,7 +261,7 @@ class MainApp:
         self.canvas.get_tk_widget().pack(fill=BOTH, expand=True)
 
     """
-    Display current temperature using cursor hover
+    CODE FOR THE CURSOR HOVER DISPLAY
     """
     def on_hover(self, event):
         if event.inaxes == self.ax:  # Check if mouse is inside the graph area
