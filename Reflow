@@ -42,6 +42,10 @@ Values1:   db 'Runt:', 0
 Values2:   db 'Run:', 0
 Blank1:    db ' ', 0
 
+AbortMsg:  db '  ***ABORTED***  ',0
+AbortMsgnd:db '   **FAILED**    ',0
+celsius:   db 'C', 0
+
 cseg
 ; These 'equ' must match the hardware wiring
 LCD_RS equ P1.3
@@ -370,6 +374,81 @@ endmac
 	lcall putchar
 	pop acc
 	ret
+
+	
+abort:
+	mov FSM1_state, #0
+	Set_Cursor(1,1)
+	Send_Constant_String(#AbortMsg)
+	Set_Cursor(2,1)
+	Send_Constant_String(#AbortMsgnd)
+	mov R2, #250
+	lcall waitms
+	Set_Cursor(1,1)
+	Send_Constant_String(#Blank)
+	Set_Cursor(2,1)
+	Send_Constant_String(#Blank)
+	mov R2, #250
+	lcall waitms
+	ret
+	
+Startmenu:
+	Set_Cursor(1,1)
+	Send_Constant_String(#Start)		
+	Set_Cursor(2,1)
+	Display_BCD(temp_soak+1)
+	Set_Cursor(2,3)
+	Display_BCD(temp_soak)
+	Set_Cursor(2,6)
+	Display_BCD(time_soak)
+	Set_Cursor(2,10)
+	Display_BCD(Temp_refl+1)
+	Set_Cursor(2,12)
+	Display_BCD(Temp_refl)
+	Set_Cursor(2,15)
+	Display_BCD(Time_refl)
+	Set_Cursor(2,5)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(2,8)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(2,9)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(2,14)
+	Send_Constant_String(#Blank1)
+	ret
+	
+Statmenu:
+	Set_Cursor(1,1)
+	Send_Constant_String(#Values)
+	Set_Cursor(2,1)
+	Send_Constant_String(#Values1)
+	Set_Cursor(2,11)
+	Send_Constant_String(#Values2)
+	Set_Cursor(1,9)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(1,10)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(2,10)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(1,16)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(1,7)
+	Display_BCD(FSM1_state)
+	Set_Cursor(1,10)
+	Display_BCD(bcd+4)	
+	Display_BCD(bcd+2)
+	Set_Cursor(1,14)
+	Send_Constant_String(#celsius)
+	Set_Cursor(1,15)
+	Send_Constant_String(#Blank1)
+	Set_Cursor(2,6)
+	Display_BCD(runtime+1)
+	Set_Cursor(2,8)
+	Display_BCD(runtime)
+	Set_Cursor(2,15)
+	Display_BCD(sec)
+	Set_Cursor(1,14)
+ret	 
 		
 	
 main:
@@ -393,64 +472,11 @@ main:
 	
 Forever:
 BeginMenu:
-	Set_Cursor(1,1)
-	Send_Constant_String(#Start)		
-	Set_Cursor(2,1)
-	Display_BCD(temp_soak+1)
-	Set_Cursor(2,3)
-	Display_BCD(temp_soak)
-	Set_Cursor(2,6)
-	Display_BCD(time_soak)
-	Set_Cursor(2,10)
-	Display_BCD(Temp_refl+1)
-	Set_Cursor(2,12)
-	Display_BCD(Temp_refl)
-	Set_Cursor(2,15)
-	Display_BCD(Time_refl)
-	Set_Cursor(2,5)
-	Send_Constant_String(#Blank1)
-	Set_Cursor(2,8)
-	Send_Constant_String(#Blank1)
-	Set_Cursor(2,9)
-	Send_Constant_String(#Blank1)
-	Set_Cursor(2,14)
-	Send_Constant_String(#Blank1)	
+	lcall StartMenu
+		
 ljmp NewDisplayeEnd
 FSM1:
-	Set_Cursor(1,1)
-	Send_Constant_String(#Values)
-	Set_Cursor(2,1)
-	Send_Constant_String(#Values1)
-	Set_Cursor(2,11)
-	Send_Constant_String(#Values2)
-	Set_Cursor(1,9)
-	Send_Constant_String(#Blank1)
-	Set_Cursor(1,10)
-	Send_Constant_String(#Blank1)
-	Set_Cursor(2,10)
-	Send_Constant_String(#Blank1)
-	Set_Cursor(1,16)
-	Send_Constant_String(#Blank1)
-	Set_Cursor(1,7)
-	Display_BCD(FSM1_state)
-	Set_Cursor(1,10)
-	Display_BCD(bcd+4)	
-	Display_BCD(bcd+2)
-;	Display_char(#'.')
-;	Display_BCD(bcd+1)
-;	Display_BCD(bcd+0)
-	Set_Cursor(1,14)
-	Send_Constant_String(#Blank1)
-	Set_Cursor(1,15)
-	Send_Constant_String(#Blank1)
-	Set_Cursor(2,6)
-	Display_BCD(runtime+1)
-	Set_Cursor(2,8)
-	Display_BCD(runtime)
-	Set_Cursor(2,15)
-	Display_BCD(sec)
-	Set_Cursor(1,14)
-	
+	lcall Statmenu
 	
 
 NewDisplayeEnd:
@@ -527,7 +553,6 @@ restart:
 	lcall ADC_to_PB
 	mov c, PB6
 	jc FSM1_state0
-abort:
 	mov FSM1_state, #0
 
 mov a, FSM1_state	
@@ -563,7 +588,12 @@ FSM1_state1_check_for_temp:
 	mov a, temp_safety
 	clr c
 	subb a, temp
-	jnc abort
+	jnc abortmessage
+	ljmp FSM1_state1_done
+abortmessage:
+	lcall abort
+	lcall abort
+	lcall abort
 
 FSM1_state1_done:
 	ljmp FSM1
