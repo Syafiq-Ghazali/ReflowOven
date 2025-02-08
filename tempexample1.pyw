@@ -8,7 +8,7 @@ class ModernTemperatureMonitor:
     def __init__(self):
         # Setup window
         self.window = ctk.CTk()
-        self.window.title("Temperature Monitor")
+        self.window.title("SBFF: Temperature")
         self.window.geometry("1000x600")
         
         # Set theme
