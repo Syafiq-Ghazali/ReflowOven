@@ -8,7 +8,7 @@ import numpy as np
 import serial, serial.tools.list_ports
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.ticker as ticker
-#import kconvert
+import kconvert
 
 """
 CONFIGURE SERIAL PORT
@@ -169,18 +169,22 @@ class MainApp:
     """
 
     """
-    GENERATE X AND Y AXIS VALUES
+    GENERATE DATA VALUES TO PLOT
     """
+
     def data_gen(self):
         t = self.data_gen.t  # Initialize time
         while True:
             t += 1
-            temp = float(ser.readline().decode('utf-8').strip()) #Change later to take input of two values
             #temp = np.exp(-0.05 * t) * 100  # Example: Decaying exponential for temperature simulation
+            string = ser.readline().decode('utf-8').strip()
+            values = string.split(",")
+            hj, cj = map(lambda x: float(x.strip()), values) #get hot and cold junction voltage readings 
+            temp=round(kconvert.mV_to_C(hj, cj),1) #convert mv to C
+            print(temp)
             yield t, temp
-            
+
     data_gen.t = -1
-        
     """
     SCROLLING FUNCTION
     """
@@ -212,7 +216,7 @@ class MainApp:
 
         # Initialize line plot
         self.line, = self.ax.plot([], [], lw=2, label = "Temperature", color = 'red')
-        self.ax.set_ylim(0, 100)
+        self.ax.set_ylim(0, 250)
         self.ax.set_xlim(0, self.xsize)
         self.ax.grid(color='grey', linewidth=0.5, )
         self.ax.tick_params(axis='both', labelsize=18, colors='white')  
@@ -221,7 +225,7 @@ class MainApp:
         self.ax.xaxis.set_major_locator(ticker.MultipleLocator(5))  # Grid every 5 seconds
         self.ax.yaxis.set_major_locator(ticker.MultipleLocator(10))  # Grid every 10°C
 
-        # Optional: Add Minor Gridlines
+        # Add Minor Gridlines
         self.ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))  # Minor grid every 1s
         self.ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))  # Minor grid every 5°C
 
@@ -238,7 +242,6 @@ class MainApp:
         # Initialize data list
         self.xdata, self.ydata = [], []
 
-
         # Create an annotation (cursor temperature display)
         self.annot = self.ax.annotate("", xy=(0, 0), xytext=(25, 25),
                                     textcoords="offset points",
@@ -247,11 +250,16 @@ class MainApp:
                                     fontsize=18)
         self.annot.set_visible(False)  # Hide initially
 
-        # Start animation
+        # Start graph animation
         self.ani = animation.FuncAnimation(
-            self.fig, self.run, self.data_gen, blit=False, interval=100, repeat=False
+            self.fig, 
+            self.run, 
+            self.data_gen, 
+            blit=False, 
+            interval=100, 
+            repeat=False,
+            save_count=100  # Add this line to specify max frames to cache
         )
-
         # Connect hover event
         self.fig.canvas.mpl_connect("motion_notify_event", self.on_hover)
 
