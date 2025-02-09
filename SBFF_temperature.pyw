@@ -41,6 +41,8 @@ class MainApp:
         self.window.minsize(1300, 700)
         self.window.maxsize(1300, 700)
 
+        self.temp_type = StringVar(value = "C") #set temperature initially in celcius
+
         # Load Images
         self.load_images()
         
@@ -129,7 +131,7 @@ class MainApp:
 
         self.temperature_button = ctk.CTkButton(self.option_frame, image=self.temperature_img, width=30, 
                                           height=90, fg_color="#FFEBEB", hover_color="#D996A8", corner_radius=100,
-                                          border_width=5, border_color="#32000C")
+                                          border_width=5, border_color="#32000C", command=self.toggle_temp)
         self.temperature_button.configure(fg_color='white', text="")
         self.temperature_button.pack(side=LEFT, padx=30)
 
@@ -164,7 +166,21 @@ class MainApp:
         self.dial = ctk.CTkLabel(self.stage_frame, image=self.dial_img, text="")
         self.dial.place(relx=0.5, rely=0.585, anchor="center")
 
-    """"
+    """
+    CODE FOR THE TEMPERATURE C/F BUTTON CONFIGURATION
+    """
+
+    def toggle_temp(self):
+        if self.temp_type.get() == "C":
+            self.temp_type.set("F")
+            print(f"Current temp type: {self.temp_type.get()}")  # Debugging print statement
+        else:
+            self.temp_type.set("C")
+            print(f"Current temp type: {self.temp_type.get()}")  # Debugging print statement
+        # Update the graph y-axis label based on the temperature type
+        self.ax.set_ylabel(f"TEMPERATURE (°{self.temp_type.get()})", fontsize=25, color='white')
+        self.fig.canvas.draw_idle()  # Redraw the graph to reflect the changes
+        """"
     CODE FOR THE GRAPH
     """
 
@@ -181,6 +197,10 @@ class MainApp:
             values = string.split(",")
             hj, cj = map(lambda x: float(x.strip()), values) #get hot and cold junction voltage readings 
             temp=round(kconvert.mV_to_C(hj, cj),1) #convert mv to C
+            #if temp_type is F, convert to fahrienheit
+            if self.temp_type.get() == "F":
+                temp *= float(9/5)
+                temp += 32
             print(temp)
             yield t, temp
 
@@ -236,7 +256,7 @@ class MainApp:
 
         # Set labels
         self.ax.set_xlabel("TIME (s)", **hfont, fontsize=25, color='white')
-        self.ax.set_ylabel("TEMPERATURE (°C)", **hfont, fontsize=25, color='white')
+        self.ax.set_ylabel(f"TEMPERATURE (°{self.temp_type.get()})", **hfont, fontsize=25, color='white')
         self.ax.set_title("REFLOW OVEN TEMPERATURE READINGS", **hfont, fontsize=30, color='white')
 
         # Initialize data list
@@ -283,7 +303,7 @@ class MainApp:
 
             # Update annotation position and text
             self.annot.xy = (x_nearest, y_nearest)
-            self.annot.set_text(f"Time: {x_nearest:.1f}s\nTemp: {y_nearest:.1f}°C")
+            self.annot.set_text(f"Time: {x_nearest:.1f}s\nTemp: {y_nearest:.1f}°°{self.temp_type.get()}")
             self.annot.set_visible(True)
 
             self.fig.canvas.draw_idle()  # Redraw to show annotation
