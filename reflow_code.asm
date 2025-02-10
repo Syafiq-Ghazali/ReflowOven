@@ -10,9 +10,9 @@ $LIST
 ;               TXD/AIN3/P0.6 -|2    19|- P0.3/PWM5/IC5/AIN6
 ;               RXD/AIN2/P0.7 -|3    18|- P0.2/ICPCK/OCDCK/RXD_1/[SCL]
 ;                    RST/P2.0 -|4    17|- P0.1/PWM4/IC4/MISO
-;        INT0/OSCIN/AIN1/P3.0 -|5    16|- P0.0/PWM3/IC3/MOSI/T1
-;              INT1/AIN0/P1.7 -|6    15|- P1.0/PWM2/IC2/SPCLK
-;                         GND -|7    14|- P1.1/PWM1/IC1/AIN7/CLO
+;RoomtempINT0/OSCIN/AIN1/P3.0 -|5    16|- P0.0/PWM3/IC3/MOSI/T1
+;              INT1/AIN0/P1.7 -|6    15|- P1.0/PWM2/IC2/SPCLK		PWM pin
+;                         GND -|7    14|- P1.1/PWM1/IC1/AIN7/CLO	Thermo couple
 ;[SDA]/TXD_1/ICPDA/OCDDA/P1.6 -|8    13|- P1.2/PWM0/IC0
 ;                         VDD -|9    12|- P1.3/SCL/[STADC]
 ;            PWM5/IC7/SS/P1.5 -|10   11|- P1.4/SDA/FB/PWM1
@@ -94,6 +94,7 @@ temp_safety: ds 1
 x: ds 4
 y: ds 4
 bcd: ds 5
+bcd2: ds 5
 
 
 
@@ -128,8 +129,11 @@ Init_All:
 	orl	P1M1, #0b10000010
 	anl	P1M2, #0b01111101
 	
+	orl P3M1, #0b00000000
+	anl P3M1, #0b11111111
+	
 	; AINDIDS select if some pins are analog inputs or digital I/O:
-	orl AINDIDS, #0b10000010
+	orl AINDIDS, #0b10000011
 	orl ADCCON1, #0x01 ; Enable ADC
 	
 	; Initialize timer 2 for periodic interrupts
@@ -313,8 +317,6 @@ Timer2_ISR_done1:
 	reti
 
 tempcalc:
-	anl ADCCON0, #0xF0
-	orl ADCCON0, #0x07 ; Select channel 7
 	clr ADCF
 	setb ADCS ;  ADC start trigger signal
     jnb ADCF, $ ; Wait for conversion complete
@@ -343,10 +345,6 @@ tempcalc:
 	lcall mul32
 	Load_y(2730000) ;floating point conversion (idk search this up)
 	lcall sub32
-	lcall hex2bcd
-	
-	mov R2, #99
-	lcall waitms
 
 	
     ret
@@ -418,8 +416,8 @@ Startmenu:
 	ret
 	
 Statmenu:
-	Set_Cursor(1,1)
-	Send_Constant_String(#Values)
+;	Set_Cursor(1,1)
+;	Send_Constant_String(#Values)
 	Set_Cursor(2,1)
 	Send_Constant_String(#Values1)
 	Set_Cursor(2,11)
@@ -432,8 +430,10 @@ Statmenu:
 	Send_Constant_String(#Blank1)
 	Set_Cursor(1,16)
 	Send_Constant_String(#Blank1)
-	Set_Cursor(1,7)
-	Display_BCD(FSM1_state)
+	Set_Cursor(1,1)
+	Display_BCD(bcd2+4)
+	Display_BCD(bcd2+2)
+;	Display_BCD(FSM1_state)
 	Set_Cursor(1,10)
 	Display_BCD(bcd+4)	
 	Display_BCD(bcd+2)
@@ -470,6 +470,7 @@ main:
 	mov temp, #0x00
 	mov temp+1, #0x00
 	
+	
 Forever:
 BeginMenu:
 	lcall StartMenu
@@ -480,12 +481,23 @@ FSM1:
 	
 
 NewDisplayeEnd:
+	anl ADCCON0, #0xF0
+	orl ADCCON0, #0x01 ; Select channel 1 Pin5 normal 
 	lcall tempcalc
+	lcall hex2bcd
+	anl ADCCON0, #0xF0
+	orl ADCCON0, #0x07 ; Select channel 7 AIN7 thermo couple
+	lcall tempcalc
+	lcall hex2bcdethan
 
-	Send_BCD (bcd+4)
-	Send_BCD (bcd+2)
+	Send_BCD(bcd+4)
+	Send_BCD(bcd+2)
+	Send_BCD(FSM1_state)
 	mov a, #'\n'
 	lcall putchar
+	mov a, #'\r'
+	lcall putchar
+	
 
 TimeSoakbutton:
 	lcall ADC_to_PB
