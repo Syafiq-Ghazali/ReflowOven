@@ -6,13 +6,13 @@ $LIST
 
 ;  N76E003 pinout:
 ;                               -------
-;       PWM2/IC6/T0/AIN4/P0.5 -|1    20|- P0.4/AIN5/STADC/PWM3/IC3
+;       PWM2/IC6/T0/AIN4/P0.5 -|1    20|- P0.4/AIN5/STADC/PWM3/IC3   lm4040
 ;               TXD/AIN3/P0.6 -|2    19|- P0.3/PWM5/IC5/AIN6
 ;               RXD/AIN2/P0.7 -|3    18|- P0.2/ICPCK/OCDCK/RXD_1/[SCL]
 ;                    RST/P2.0 -|4    17|- P0.1/PWM4/IC4/MISO
-;        INT0/OSCIN/AIN1/P3.0 -|5    16|- P0.0/PWM3/IC3/MOSI/T1
-;              INT1/AIN0/P1.7 -|6    15|- P1.0/PWM2/IC2/SPCLK
-;                         GND -|7    14|- P1.1/PWM1/IC1/AIN7/CLO
+;RoomtempINT0/OSCIN/AIN1/P3.0 -|5    16|- P0.0/PWM3/IC3/MOSI/T1
+;              INT1/AIN0/P1.7 -|6    15|- P1.0/PWM2/IC2/SPCLK		PWM pin
+;                         GND -|7    14|- P1.1/PWM1/IC1/AIN7/CLO	Thermo couple
 ;[SDA]/TXD_1/ICPDA/OCDDA/P1.6 -|8    13|- P1.2/PWM0/IC0
 ;                         VDD -|9    12|- P1.3/SCL/[STADC]
 ;            PWM5/IC7/SS/P1.5 -|10   11|- P1.4/SDA/FB/PWM1
@@ -85,7 +85,6 @@ Temp_cool: ds 2
 pwm: ds 1
 sec: ds 5
 FSM1_state: ds 1
-temp: ds 5
 time: ds 5
 pwm_counter: ds 1
 runtime: ds 2
@@ -94,6 +93,9 @@ temp_safety: ds 1
 x: ds 4
 y: ds 4
 bcd: ds 5
+bcd2: ds 5
+
+totaltemp: ds 5
 
 
 
@@ -125,11 +127,17 @@ Init_All:
 	; Initialize and start the ADC:
 	
 	; AIN0 is connected to P1.7.  Configure P1.7 as input.
-	orl	P1M1, #0b10000010
-	anl	P1M2, #0b01111101
+	orl	P1M1, #0b10100010
+	anl	P1M2, #0b01011101
+	
+	orl P3M1, #0b00000000
+	anl P3M2, #0b11111111
+	
+	mov	P0M1, #0b00100000
+	mov	P0M2, #0b11011111
 	
 	; AINDIDS select if some pins are analog inputs or digital I/O:
-	orl AINDIDS, #0b10000010
+	orl AINDIDS, #0b10100011
 	orl ADCCON1, #0x01 ; Enable ADC
 	
 	; Initialize timer 2 for periodic interrupts
@@ -311,29 +319,78 @@ Timer2_ISR_done1:
 	pop acc
 	pop psw
 	reti
+	
 
+tempcalcforthermo:
+	
+	anl ADCCON0, #0xF0
+	orl ADCCON0, #0x07 ;the thermo thingy
+	lcall Read_ADC
+	
+ 	mov x+0, R0
+	mov x+1, R1
+	mov x+2, #0
+	mov x+3, #0
+	
+	Load_y(49600)
+	lcall mul32
+	Load_y (4095)
+	lcall div32
+	
+	load_y(100000)
+	lcall mul32
+	
+	load_y(764)
+	lcall div32
+	
+;anl ADCCON0, #0xF0
+;orl ADCCON0, #0x05
+;lcall Read_ADC 
+;	
+;mov y+0, R0
+;mov y+1, R1
+;mov y+2, #0
+;mov y+3, #0
+;	
+;lcall div32
+	
+;load_y(1000)
+;lcall mul32
+;Load_y(333000)
+;lcall div32
+	
+;Load_y(1000)
+;lcall mul32
+;Load_y(41)
+;lcall div32
+;	
+;	
+
+;	Load_y(50300) ; VCC voltage measured
+;	lcall mul32
+;	Load_y(4095) ; 2^12-1
+;	lcall div32
+;	
+;	Load_y(100)
+;	lcall mul32
+;	Load_y(2730000)
+;	lcall sub32
+	
+	lcall hex2bcdethan
+
+    ret
+
+    
 tempcalc:
 	anl ADCCON0, #0xF0
-	orl ADCCON0, #0x07 ; Select channel 7
-	clr ADCF
-	setb ADCS ;  ADC start trigger signal
-    jnb ADCF, $ ; Wait for conversion complete
-    
-    ; Read the ADC result and store in [R1, R0]
-    mov a, ADCRH   
-    swap a
-    push acc
-    anl a, #0x0f
-    mov R1, a
-    pop acc
-    anl a, #0xf0
-    orl a, ADCRL
-    mov R0, A
+	orl ADCCON0, #0x01
+	lcall Read_ADC
     
  	mov x+0, R0
 	mov x+1, R1
 	mov x+2, #0
 	mov x+3, #0
+	
 	Load_y(50300) ; VCC voltage measured
 	lcall mul32
 	Load_y(4095) ; 2^12-1
@@ -341,15 +398,40 @@ tempcalc:
 	
 	Load_y(100)
 	lcall mul32
-	Load_y(2730000) ;floating point conversion (idk search this up)
+	Load_y(2730000)
 	lcall sub32
+
+
 	lcall hex2bcd
-	
-	mov R2, #99
-	lcall waitms
 
 	
     ret
+    
+totaltempcalc:
+
+	push acc
+	push psw
+	
+	mov x+0, bcd+0
+	mov x+1, bcd+1
+	mov x+2, bcd+2
+	mov x+3, bcd+3
+	
+	mov y+0, bcd2+0
+	mov y+1, bcd2+1
+	mov y+2, bcd2+2
+	mov y+3, bcd2+3
+	
+	lcall add32
+	
+	mov totaltemp+0, x+0
+	mov totaltemp+1, x+1	
+	mov totaltemp+2, x+2			
+ 	mov totaltemp+3, x+3
+ 	
+ 	pop psw
+ 	pop acc
+ret   
     
 Send_BCD mac
 	push ar0
@@ -432,11 +514,17 @@ Statmenu:
 	Send_Constant_String(#Blank1)
 	Set_Cursor(1,16)
 	Send_Constant_String(#Blank1)
+;	Set_Cursor(1,1)
+;	Display_BCD(bcd2+3)
+;	Display_BCD(bcd2+2)
+	Set_Cursor(1,10)
+	Display_BCD(totaltemp+3)
+	Display_BCD(totaltemp+2)
 	Set_Cursor(1,7)
 	Display_BCD(FSM1_state)
-	Set_Cursor(1,10)
-	Display_BCD(bcd+4)	
-	Display_BCD(bcd+2)
+;	Set_Cursor(1,10)
+;	Display_BCD(bcd+3)	
+;	Display_BCD(bcd+2)
 	Set_Cursor(1,14)
 	Send_Constant_String(#celsius)
 	Set_Cursor(1,15)
@@ -449,6 +537,25 @@ Statmenu:
 	Display_BCD(sec)
 	Set_Cursor(1,14)
 ret	 
+
+Read_ADC:
+	clr ADCF
+	setb ADCS ; ADC start trigger signal
+	jnb ADCF, $ ; Wait for conversion complete
+; Read the ADC result and store in [R1, R0]
+	mov a, ADCRL
+	anl a, #0x0f
+	mov R0, a
+	mov a, ADCRH
+	swap a
+	push acc
+	anl a, #0x0f
+	mov R1, a
+	pop acc
+	anl a, #0xf0
+	orl a, R0
+	mov R0, A
+	ret
 		
 	
 main:
@@ -466,10 +573,9 @@ main:
 	mov Temp_refl+1, #0x02
 	mov Time_refl, #0x45
 	mov Temp_cool, #0x60
+	mov Temp_cool+1, #0x00
 	mov FSM1_state, #0x00
-	mov temp, #0x00
-	mov temp+1, #0x00
-	
+		
 Forever:
 BeginMenu:
 	lcall StartMenu
@@ -480,12 +586,19 @@ FSM1:
 	
 
 NewDisplayeEnd:
+	
 	lcall tempcalc
-
-	Send_BCD (bcd+4)
-	Send_BCD (bcd+2)
+	lcall tempcalcforthermo
+	lcall totaltempcalc
+	Wait_Milli_Seconds(#99)
+	
+	Send_BCD(totaltemp+3)
+	Send_BCD(totaltemp+2)
 	mov a, #'\n'
 	lcall putchar
+	mov a, #'\r'
+	lcall putchar
+	
 
 TimeSoakbutton:
 	lcall ADC_to_PB
@@ -576,9 +689,9 @@ FSM1_state1:		;Stay in state 1 if temp<=150 ;RAMP TO SOAK;
 	mov sec, #0
     mov a, temp_soak
     clr c
-    subb a, bcd+2
+    subb a, totaltemp+2
     mov a, temp_soak+1
-    subb a, bcd+4
+    subb a, totaltemp+3
 	jnc FSM1_state1_check_for_temp
 	mov FSM1_state, #2
 	ljmp FSM1_state3_done
@@ -587,7 +700,7 @@ FSM1_state1_check_for_temp:
 	cjne a, #0x60, FSM1_state1_done
 	mov a, temp_safety
 	clr c
-	subb a, temp
+	subb a, totaltemp+2
 	jnc abortmessage
 	ljmp FSM1_state1_done
 abortmessage:
@@ -619,9 +732,9 @@ FSM1_state3:		;Stay in state 3 if temp<=220 ;RAMP TO PEAK;
 	mov time, #0
     mov a, Temp_refl
     clr c
-    subb a, bcd+2
+    subb a, totaltemp+2
     mov a, Temp_refl+1
-    subb a, bcd+4
+    subb a, totaltemp+3
 	jnc FSM1_state3_done 
 	mov FSM1_state, #4
 FSM1_state3_done:
@@ -647,9 +760,9 @@ FSM1_state5:		;Stay in state 5 if temp >= 60 ;cooling;
 	mov pwm, #0
 	clr c
 	mov a, Temp_cool
-	subb a, bcd+2
-	mov a, Temp_refl+1
-	subb a, bcd+4
+	subb a, totaltemp+2
+	mov a, Temp_cool+1
+	subb a, totaltemp+3
 	jc FSM1_state5_done
 	mov FSM1_state, #0
 FSM1_state5_done:
@@ -657,4 +770,4 @@ FSM1_state5_done:
 
 	ljmp Forever
 	
-END
+END 
