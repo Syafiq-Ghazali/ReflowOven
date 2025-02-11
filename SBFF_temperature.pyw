@@ -67,7 +67,6 @@ class MainApp:
         #self.window.quit()
         #self.window.destroy()
 
-
     # Loading in Images
     def load_images(self):
         self.export_img = ctk.CTkImage(Image.open("export-icon.png"), size=(25,25))
@@ -537,16 +536,21 @@ class MainApp:
     """
 
     def toggle_temp(self):
+        hfont = {'font':'Arial', 'fontweight':'bold'}
+
         if self.temp_type.get() == "C":
             self.temp_type.set("F")
             self.line_c.set_visible(False)
             self.line_f.set_visible(True)
             print(f"Current temp type: {self.temp_type.get()}")  # Debugging print statement
+            self.ax.set_ylabel(f"TEMPERATURE (°F)", **hfont, fontsize=25, color='white')
+
         else:
             self.temp_type.set("C")
             self.line_f.set_visible(False)
             self.line_c.set_visible(True)
             print(f"Current temp type: {self.temp_type.get()}")  # Debugging print statement
+            self.ax.set_ylabel(f"TEMPERATURE (°C)", **hfont, font = "bold", fontsize=25, color='white')
         # Update the graph y-axis label based on the temperature type
         self.fig.canvas.draw_idle()  # Redraw the graph to reflect the changes
     
@@ -559,14 +563,8 @@ class MainApp:
         while True:
             t += 1
             temp_c = np.sin(0.1*t)*100 +100
-            #temp = np.exp(-0.05 * t) * 100  # Example: Decaying exponential for temperature simulation
             #temp = float(ser.readline().decode('utf-8').strip())
-            #values = string.split(",")
-            #hj, cj = map(lambda x: float(x.strip()), values) #get hot and cold junction voltage readings 
-            #temp=round(kconvert.mV_to_C(hj, cj),1) #convert mv to C
-            #if temp_type is F, convert to fahrienheit
             temp_f = (temp_c * 9/5) + 32
-            #print(temp)
             yield t, temp_c, temp_f
 
     data_gen.t = -1
@@ -607,18 +605,28 @@ class MainApp:
         # Initialize line plot
         self.line_c, = self.ax.plot([], [], lw=2, label = "Temperature (°C)", color = 'red')
         self.line_f, = self.ax.plot([], [], lw=2, label="Temperature(°F)", color="#73e6ff", visible=False)
-        self.ax.set_ylim(0, 250)
+        if self.temp_type.get() == "C":
+            self.ax.set_ylim(0, 250)
+        elif self.temp_type.get() == "F":
+            self.ax.set_ylim(0, 500)
+        
         self.ax.set_xlim(0, self.xsize)
         self.ax.grid(color='grey', linewidth=0.5, )
         self.ax.tick_params(axis='both', labelsize=18, colors='white')  
 
         # Increase Number of Gridlines
         self.ax.xaxis.set_major_locator(ticker.MultipleLocator(5))  # Grid every 5 seconds
-        self.ax.yaxis.set_major_locator(ticker.MultipleLocator(10))  # Grid every 10°C
+        if self.temp_type.get() == "C":
+            self.ax.yaxis.set_major_locator(ticker.MultipleLocator(10))  # Grid every 10°C
+        elif self.temp_type.get() == "F":
+            self.ax.yaxis.set_major_locator(ticker.MultipleLocator(20))  # Grid every 20°C
 
         # Add Minor Gridlines
         self.ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))  # Minor grid every 1s
-        self.ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))  # Minor grid every 5°C
+        if self.temp_type.get() =="C":
+            self.ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))  # Minor grid every 5°C
+        else:
+            self.ax.yaxis.set_minor_locator(ticker.MultipleLocator(10))  # Grid every 10°C
 
         self.ax.grid(True, which='major', color='gray', linewidth=1)
         self.ax.grid(True, which='minor', color='gray', linestyle=':', linewidth=0.5)
@@ -627,7 +635,8 @@ class MainApp:
 
         # Set labels
         self.ax.set_xlabel("TIME (s)", **hfont, fontsize=25, color='white')
-        self.ax.set_ylabel(f"TEMPERATURE (°{self.temp_type.get()})", **hfont, fontsize=25, color='white')
+        self.ax.set_ylabel(f"TEMPERATURE (°C)", fontsize=25, color='white')
+
         self.ax.set_title("REFLOW OVEN TEMPERATURE READINGS", **hfont, fontsize=30, color='white')
 
         # Initialize data list
@@ -676,14 +685,13 @@ class MainApp:
 
             # Update annotation position and text
             self.annot.xy = (x_nearest, y_nearest)
-            self.annot.set_text(f"Time: {x_nearest:.1f}s\nTemp: {y_nearest:.1f}°°{self.temp_type.get()}")
+            self.annot.set_text(f"Time: {x_nearest:.1f}s\nTemp: {y_nearest:.1f}°{self.temp_type.get()}")
             self.annot.set_visible(True)
 
             self.fig.canvas.draw_idle()  # Redraw to show annotation
         else:
             self.annot.set_visible(False)
             self.fig.canvas.draw_idle()
-
 
 if __name__ == "__main__": 
     window = ctk.CTk()
