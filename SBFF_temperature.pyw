@@ -15,7 +15,7 @@ import tkinter.filedialog as filedialog
 """
 CONFIGURE SERIAL PORT
 """
-
+"""
 ser = serial.Serial(
 port='COM5',
     baudrate=115200,
@@ -24,7 +24,7 @@ port='COM5',
     bytesize=serial.EIGHTBITS
 )
 ser.isOpen()
-
+"""
 """COLOR SCHEME"""
 # Light White: #FFEBEB
 # Dark Pink: #EE7C9A
@@ -45,7 +45,7 @@ class MainApp:
         self.temp_type = StringVar(value = "C") #set temperature initially in celcius
 
         # Cleanup after closing the window
-        #self.window.protocol("WM_DELETE_WINDOW", self.close_window)
+        self.window.protocol("WM_DELETE_WINDOW", self.close_window)
 
         # Load Images
         self.load_images()
@@ -58,12 +58,12 @@ class MainApp:
     """
     window closing cleanup function
     """
-    #def close_window(self):
-        #if self.ani is not None:
-        #    self.ani.event_source.stop()
-        #plt.close('all')
-        #self.window.quit()
-        #self.window.destroy()
+    def close_window(self):
+        if self.ani is not None:
+            self.ani.event_source.stop()
+        plt.close('all')
+        self.window.quit()
+        self.window.destroy()
 
     # Loading in Images
     def load_images(self):
@@ -463,7 +463,14 @@ class MainApp:
         # Label
         self.export_title = ctk.CTkLabel(self.export_top_frame, text="Select Export Options:", font=("Helvetica", 30, "bold"), text_color="white")
         self.export_title.pack(side=TOP, fill=BOTH, anchor="center", padx=10, pady=(20,15))
-
+        
+        """
+        # Close Button 
+        self.export_close_button = ctk.CTkButton(self.export_top_frame, text="", image=self.back_img, 
+                                            command=self.info_window.destroy, 
+                                            width=5, height=5, fg_color="#32000C", hover_color="#800020")
+        self.export_close_button.pack(side=LEFT, padx=(0,0), pady=0)
+        """
         self.seperator_frame = ctk.CTkFrame(self.export_top_frame, width=600, height=10, fg_color="white", corner_radius=0)
         self.seperator_frame.pack(side=BOTTOM, fill=X, expand=False)
         self.seperator_frame.pack_propagate(False)
@@ -521,7 +528,10 @@ class MainApp:
 
         elif export_type == "Excel":
             import pandas as pd
-            df = pd.DataFrame({"Time (s)": self.xdata, f"Temperature (°{self.temp_type.get()})": self.ydata})
+            if self.temp_type.get() == "C":
+                df = pd.DataFrame({"Time (s)": self.xdata, f"Temperature (°{self.temp_type.get()})": self.ydata_c})
+            elif self.temp_type.get() == "F":
+                df = pd.DataFrame({"Time (s)": self.xdata, f"Temperature (°{self.temp_type.get()})": self.ydata_f})
             df.to_excel(file_path, index=False)
 
         elif export_type == "PDF":
@@ -541,22 +551,34 @@ class MainApp:
             self.line_c.set_visible(False)
             self.line_f.set_visible(True)
             print(f"Current temp type: {self.temp_type.get()}")  # Debugging print statement
-            self.ax.set_ylabel(f"TEMPERATURE (°F)", **hfont, fontsize=25, color='white')
+            self.ax.set_ylabel(f"TEMPERATURE (°{self.temp_type.get()})", **hfont, fontsize=25, color='white')
 
         else:
             self.temp_type.set("C")
             self.line_f.set_visible(False)
             self.line_c.set_visible(True)
             print(f"Current temp type: {self.temp_type.get()}")  # Debugging print statement
-            self.ax.set_ylabel(f"TEMPERATURE (°C)", **hfont, font = "bold", fontsize=25, color='white')
+            self.ax.set_ylabel(f"TEMPERATURE (°{self.temp_type.get()})", **hfont, fontsize=25, color='white')
         # Update the graph y-axis label based on the temperature type
         self.fig.canvas.draw_idle()  # Redraw the graph to reflect the changes
+        self.update_axes()
     
     """GRAPH"""
 
     """GENERATE DATA VALUES TO PLOT"""
     
     def data_gen(self):
+        t = self.data_gen.t
+        while True:
+            t+=1
+            temp_c= np.sin(0.1*t)*100
+            temp_f = (temp_c * 9/5)+32
+
+            yield t, temp_c, temp_f
+
+    data_gen.t = -1
+
+    """
         while True:
             line = ser.readline().decode('utf-8').strip()
             parts= line.split(",")
@@ -567,11 +589,12 @@ class MainApp:
                     state = float(parts[1].strip())
                     t = float(parts[2].strip())
                     print(f"temp:{temp_c}, state:{state}, time:{t}")
+                    temp_f = (temp_c * 9/5)+32
 
-                    yield temp_c, state, t
+                    yield temp_c, temp_f, state, t
                 except ValueError:
                     print(f"Non numeric data recieved: {line}")
-
+        """
 
     """SCROLLING"""
     def run(self, data):
@@ -596,6 +619,24 @@ class MainApp:
 
     """GRAPH SETUP"""
 
+    def update_axes(self):
+        # Update y-axis limits and grid settings based on the temp_type
+        if self.temp_type.get() == "C":
+            self.ax.set_ylim(0, 250)
+            self.ax.yaxis.set_major_locator(ticker.MultipleLocator(10))  # Grid every 10°C
+            self.ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))   # Minor grid every 5°C
+        elif self.temp_type.get() == "F":
+            self.ax.set_ylim(0, 500)
+            self.ax.yaxis.set_major_locator(ticker.MultipleLocator(20))  # Grid every 20°F
+            self.ax.yaxis.set_minor_locator(ticker.MultipleLocator(10))  # Minor grid every 10°F
+
+        # Update the label with the correct temperature unit
+        self.ax.set_ylabel(f"TEMPERATURE (°{self.temp_type.get()})", **hfont, fontsize=25, color='white')
+
+        # Redraw the canvas to apply the changes
+        self.fig.canvas.draw_idle()
+
+
     def setup_graph(self):
         #plt.close('all')
 
@@ -609,29 +650,21 @@ class MainApp:
 
         # Initialize line plot
         self.line_c, = self.ax.plot([], [], lw=2, label = "Temperature (°C)", color = 'red')
-        self.line_f, = self.ax.plot([], [], lw=2, label="Temperature(°F)", color="#73e6ff", visible=False)
-        if self.temp_type.get() == "C":
-            self.ax.set_ylim(0, 250)
-        elif self.temp_type.get() == "F":
-            self.ax.set_ylim(0, 500)
-        
+        self.line_f, = self.ax.plot([], [], lw=2, label= "Temperature(°F)", color="#73e6ff", visible=False)
+    
+        self.ax.set_ylim(0, 250)
         self.ax.set_xlim(0, self.xsize)
         self.ax.grid(color='grey', linewidth=0.5, )
         self.ax.tick_params(axis='both', labelsize=18, colors='white')  
 
+        
         # Increase Number of Gridlines
         self.ax.xaxis.set_major_locator(ticker.MultipleLocator(5))  # Grid every 5 seconds
-        if self.temp_type.get() == "C":
-            self.ax.yaxis.set_major_locator(ticker.MultipleLocator(10))  # Grid every 10°C
-        elif self.temp_type.get() == "F":
-            self.ax.yaxis.set_major_locator(ticker.MultipleLocator(20))  # Grid every 20°C
+        self.ax.yaxis.set_major_locator(ticker.MultipleLocator(10))  # Grid every 10°C
 
         # Add Minor Gridlines
         self.ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))  # Minor grid every 1s
-        if self.temp_type.get() =="C":
-            self.ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))  # Minor grid every 5°C
-        else:
-            self.ax.yaxis.set_minor_locator(ticker.MultipleLocator(10))  # Grid every 10°C
+        self.ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))  # Minor grid every 5°C
 
         self.ax.grid(True, which='major', color='gray', linewidth=1)
         self.ax.grid(True, which='minor', color='gray', linestyle=':', linewidth=0.5)
@@ -640,7 +673,7 @@ class MainApp:
 
         # Set labels
         self.ax.set_xlabel("TIME (s)", **hfont, fontsize=25, color='white')
-        self.ax.set_ylabel(f"TEMPERATURE (°C)", fontsize=25, color='white')
+        self.ax.set_ylabel(f"TEMPERATURE (°C)", **hfont, fontsize=25, color='white')
 
         self.ax.set_title("REFLOW OVEN TEMPERATURE READINGS", **hfont, fontsize=30, color='white')
 
