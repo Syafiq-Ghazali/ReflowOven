@@ -45,6 +45,8 @@ Blank1:    db ' ', 0
 AbortMsg:  db '  ***ABORTED***  ',0
 AbortMsgnd:db '   **FAILED**    ',0
 celsius:   db 'C', 0
+donemsg:   db '!!! ALL DONE !!!!',0
+donemsgnd: db 'By SBFFS   :3    ',0
 
 cseg
 ; These 'equ' must match the hardware wiring
@@ -497,6 +499,7 @@ Startmenu:
 	Send_Constant_String(#Blank1)
 	Set_Cursor(2,14)
 	Send_Constant_String(#Blank1)
+
 	ret
 	
 Statmenu:
@@ -557,18 +560,18 @@ Read_ADC:
 	mov R0, A
 	ret
 		
-	
 main:
 	mov sp, #0x7f
 	lcall Init_All
     lcall LCD_4BIT
     mov sec, #0
     mov temp_safety, #0x50
+    mov temp_safety+1, #0x00
     mov runtime, #0
     mov runtime+1, #0
     mov temp_soak, #0x50 ;I hate the 8051 -> 220 and 150 greator than 8 bits so must use 16 bits
     mov temp_soak+1, #0x01
-	mov time_soak, #0x60
+	mov time_soak, #0x50
 	mov Temp_refl, #0x20
 	mov Temp_refl+1, #0x02
 	mov Time_refl, #0x45
@@ -576,7 +579,6 @@ main:
 	mov Temp_cool+1, #0x00
 	mov FSM1_state, #0x00
 		
-Forever:
 BeginMenu:
 	lcall StartMenu
 		
@@ -594,6 +596,7 @@ NewDisplayeEnd:
 	
 	Send_BCD(totaltemp+3)
 	Send_BCD(totaltemp+2)
+	Send_BCD(FSM1_state)
 	mov a, #'\n'
 	lcall putchar
 	mov a, #'\r'
@@ -698,16 +701,18 @@ FSM1_state1:		;Stay in state 1 if temp<=150 ;RAMP TO SOAK;
 FSM1_state1_check_for_temp:
 	mov a, runtime
 	cjne a, #0x60, FSM1_state1_done
-	mov a, temp_safety
+	mov a, totaltemp+3
 	clr c
-	subb a, totaltemp+2
-	jnc abortmessage
+	subb a, temp_safety+1
+   mov a, totaltemp+2
+   subb a, temp_safety
+	jc abortmessage
 	ljmp FSM1_state1_done
 abortmessage:
 	lcall abort
 	lcall abort
 	lcall abort
-
+	
 FSM1_state1_done:
 	ljmp FSM1
 
@@ -756,18 +761,35 @@ FSM1_state4_done:
 FSM1_state5:		;Stay in state 5 if temp >= 60 ;cooling;
 					; Go to state 09 if temp < 60
 					;Power set 0%
-	cjne a, #5, FSM1_state5_done
+	cjne a, #5, FSM1_state6
 	mov pwm, #0
+	mov a, totaltemp+3
 	clr c
-	mov a, Temp_cool
-	subb a, totaltemp+2
-	mov a, Temp_cool+1
-	subb a, totaltemp+3
-	jc FSM1_state5_done
-	mov FSM1_state, #0
+	subb a, Temp_cool+1
+	mov a, totaltemp+2
+	subb a, Temp_cool
+	jnc FSM1_state5_done
+	mov FSM1_state, #6
 FSM1_state5_done:
-	ljmp BeginMenu
+	ljmp FSM1
+FSM1_state6:
 
-	ljmp Forever
+	cjne a, #6, FSM1_state6_done
+	mov pwm, #0
+	Set_Cursor(1,1)
+	Send_Constant_String(#donemsg)
+	Set_Cursor(2,1)
+	Send_Constant_String(#donemsgnd)
+	mov R2, #250
+	lcall waitms
+	mov R2, #250
+	lcall waitms
+	mov R2, #250
+	lcall waitms
+	mov R2, #250
+	mov FSM1_state, #0
+	lcall waitms	
+FSM1_state6_done:
+	ljmp BeginMenu
 	
 END 
