@@ -1,0 +1,587 @@
+from tkinter import *
+from threading import Thread
+from PIL import Image, ImageDraw, ImageTk
+import customtkinter as ctk
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import sys, time, math
+import numpy as np
+import serial, serial.tools.list_ports
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.ticker as ticker
+import kconvert
+
+"""
+CONFIGURE SERIAL PORT
+"""
+"""
+ser = serial.Serial(
+port='COM5',
+    baudrate=115200,
+    parity=serial.PARITY_NONE,
+    stopbits=serial.STOPBITS_ONE,
+    bytesize=serial.EIGHTBITS
+)
+ser.isOpen()
+"""
+"""
+COLORSCHEME
+"""
+# Light White: #FFEBEB
+# Dark Pink: #EE7C9A
+# Reddish Pink: #C30130
+# Maroon: #32000C
+# Grey Pink: #D996A8
+
+class MainApp:
+    def __init__(self, window):
+        # Setting up the window
+        self.window = window
+        self.window.title('SBFFs: Temperature Monitor')
+        self.window.geometry('1300x700')
+        self.window.configure(bg='gray13')
+        self.window.minsize(1300, 700)
+        self.window.maxsize(1300, 700)
+
+        self.temp_type = StringVar(value = "C") #set temperature initially in celcius
+
+        # Load Images
+        self.load_images()
+        
+        # Main windows
+        self.setup_microwave()
+        self.setup_leftframe()
+        self.setup_rightframe()
+
+    # Loading in Images
+    def load_images(self):
+        self.export_img = ctk.CTkImage(Image.open("export-icon.png"), size=(25,25))
+        self.info_img = ctk.CTkImage(Image.open("info-icon.png"), size=(25,25))
+        self.temperature_img = ctk.CTkImage(Image.open("temperature-icon.png"), size=(30,30))
+        self.dial_display_img = ctk.CTkImage(Image.open("dial-display.png"), size=(450,320))
+        self.stage0_img = ctk.CTkImage(Image.open("stage0.png"), size=(120,120))
+        self.stage1_img = ctk.CTkImage(Image.open("stage1.png"), size=(180,180))
+        self.stage2_img = ctk.CTkImage(Image.open("stage2.png"), size=(120,120))
+        self.stage3_img = ctk.CTkImage(Image.open("stage3.png"), size=(180,180))
+        self.stage4_img = ctk.CTkImage(Image.open("stage4.png"), size=(120,120))
+        self.stage5_img = ctk.CTkImage(Image.open("stage5.png"), size=(180,180))
+        self.stage6_img = ctk.CTkImage(Image.open("stage6.png"), size=(120,120))
+        self.back_img = ctk.CTkImage(Image.open("back.png"), size=(18,25))
+        self.stages_img = ctk.CTkImage(Image.open("stages.png"), size=(25,22))
+        self.voltage_img = ctk.CTkImage(Image.open("voltage.png"), size=(25,22))
+        self.gangski_img = ctk.CTkImage(Image.open("gangski.jpg"), size=(800,600))
+
+    #The whole Microwave
+    def setup_microwave(self):
+        self.main_frame = ctk.CTkFrame(self.window, width=1300, height=700, fg_color="red", corner_radius=0)
+        self.main_frame.pack(fill=BOTH, expand=True)
+        self.main_frame.pack_propagate(False)
+
+    def setup_leftframe(self):
+        self.left_frame = ctk.CTkFrame(self.main_frame, width= 850, height = 700, fg_color="white", corner_radius=0)
+        self.left_frame.pack(side =LEFT, fill =X)
+        self.left_frame.pack_propagate(False)
+        
+        self.top_frame = ctk.CTkFrame(self.left_frame, width=850, height = 100, fg_color="#FFEBEB", corner_radius=0)
+        self.top_frame.pack(side = TOP, fill=X)
+        self.top_frame.pack_propagate(False)
+        
+        self.middle_frame = ctk.CTkFrame(self.left_frame, width=850, height=500, fg_color="#FFEBEB", corner_radius=0)
+        self.middle_frame.pack(side = TOP, fill=BOTH)
+        self.middle_frame.pack_propagate(False)
+        
+        self.bottom_frame = ctk.CTkFrame(self.left_frame, width=850, height = 100, fg_color="#FFEBEB", corner_radius=0)
+        self.bottom_frame.pack(side = TOP, fill=X)
+        self.bottom_frame.pack_propagate(False)
+
+        self.middle_left_frame = ctk.CTkFrame(self.middle_frame, width = 50, height = 500, fg_color="#FFEBEB", corner_radius=0)
+        self.middle_left_frame.pack(side=LEFT, fill=X)
+        self.middle_left_frame.pack_propagate(False)
+        
+        self.middle_graph_frame = ctk.CTkFrame(self.middle_frame, width = 750, height = 500, fg_color="pink", border_width=5,
+                                               border_color="#32000C", corner_radius=0)
+        self.middle_graph_frame.pack(side=LEFT, fill=Y)
+        self.middle_graph_frame.pack_propagate(False)
+
+        self.middle_right_frame = ctk.CTkFrame(self.middle_frame, width = 50, height = 500, fg_color="#FFEBEB", corner_radius=0)
+        self.middle_right_frame.pack(side=LEFT, fill=X)
+        self.middle_right_frame.pack_propagate(False)
+
+        self.setup_graph()  
+        
+    # Right Microwave Panel
+    def setup_rightframe(self):
+        # Setting up main right frame
+        self.right_frame = ctk.CTkFrame(self.main_frame, width=450, height=700, 
+                                        fg_color="#EE7C9A", corner_radius=0)
+        self.right_frame.pack(side=TOP, fill=Y)
+        self.right_frame.pack_propagate(False)
+
+        # Frame to be used to display the current status
+        self.status_frame = ctk.CTkFrame(self.right_frame, width=500, height=100, fg_color="#EE7C9A", corner_radius=0)
+        self.status_frame.pack(side=TOP, fill=X)
+        self.status_frame.pack_propagate(False)
+
+        # Frame to be used to display the current stage (knob)
+        self.stage_frame = ctk.CTkFrame(self.right_frame, width=500, height=400, fg_color="#EE7C9A", corner_radius=0)
+        self.stage_frame.pack(side=TOP, fill=X)
+        self.stage_frame.pack_propagate(False)
+
+        # Frame to be used to display the option buttons
+        self.option_frame = ctk.CTkFrame(self.right_frame, width=500, height=150, fg_color="#EE7C9A", corner_radius=0)
+        self.option_frame.pack(side=TOP, fill=X)
+        self.option_frame.pack_propagate(False)
+        
+        """
+        CODE FOR THE OPTION BUTTONS
+        """
+        self.information_button = ctk.CTkButton(self.option_frame, image=self.info_img, width=30, 
+                                                height=70, fg_color="#FFEBEB", hover_color="#D996A8", corner_radius=100,
+                                                border_width=5, border_color="black",
+                                                command=self.open_information)
+        self.information_button.configure(fg_color='white', text="")
+        self.information_button.pack(side=LEFT, padx=(30,0))
+
+        self.temperature_button = ctk.CTkButton(self.option_frame, image=self.temperature_img, width=30, 
+                                          height=90, fg_color="#FFEBEB", hover_color="#D996A8", corner_radius=100,
+                                          border_width=5, border_color="#32000C", command=self.toggle_temp)
+        self.temperature_button.configure(fg_color='white', text="")
+        self.temperature_button.pack(side=LEFT, padx=30)
+
+        self.export_button = ctk.CTkButton(self.option_frame, 
+                                          image=self.export_img, width=30, height=70, 
+                                          corner_radius=100, 
+                                          border_width=5, border_color="black",
+                                          fg_color="#FFEBEB", hover_color="#D996A8")
+        self.export_button.configure(fg_color='white', text="")
+        self.export_button.pack(side=LEFT, padx=(0,20))
+
+        """
+        CODE FOR THE STATUS DISPLAY
+        """
+        self.status_border = ctk.CTkFrame(self.status_frame, width=370, height=75, 
+                                          fg_color="pink", corner_radius=20,
+                                          border_color="black", border_width=5)
+        self.status_border.pack(side=TOP, fill=Y, pady=(10,5))
+        self.status_border.pack_propagate(False)
+
+        """
+        CODE FOR THE STAGE DISPLAY 
+        """
+        self.stage_title = ctk.CTkLabel(self.stage_frame, text="STAGE", font=("Arial", 40, "bold"), text_color="#32000C")
+        self.stage_title.pack(side=TOP, fill=X, anchor="center", pady=(27))
+
+        # Set dial_display (background image)
+        self.dial_display = ctk.CTkLabel(self.stage_frame, image=self.dial_display_img, text="")
+        self.dial_display.place(relx=0.5, rely=0.585, anchor="center")
+
+        # Set dial (foreground image, on top of display)
+        self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage0_img, text="")
+        self.dial.place(relx=0.5, rely=0.585, anchor="center")
+
+    """ 
+    CODE FOR INFORMATION WINDOW
+    """
+
+    def open_information(self):
+        self.info_window = ctk.CTkToplevel(self.window)  # Creates a new top-level window
+        self.info_window.title("Information Page")
+        self.info_window.geometry("800x700")  # Adjust the size as needed
+        self.info_window.configure(bg="#32000C")  
+        self.info_window.attributes("-topmost", 1)
+
+        self.information_top()
+        self.sidebar_menu()
+        self.stage_content()
+
+    def information_top(self):
+        # Top Frame
+        self.info_top_frame = ctk.CTkFrame(self.info_window, width=800, height=70, fg_color="#32000C", corner_radius=0)
+        self.info_top_frame.pack(side=TOP, fill=BOTH, expand=True)
+        self.info_top_frame.pack_propagate(False)
+
+        # Close Button
+        self.close_button = ctk.CTkButton(self.info_top_frame, text="", image=self.back_img, 
+                                            command=self.info_window.destroy, 
+                                            width=25, height=50, fg_color="#32000C", hover_color="#800020")
+        self.close_button.pack(side=LEFT, padx=(10,0), pady=5)
+
+        self.info_title = ctk.CTkLabel(self.info_top_frame, text="Information", font=("Helvetica", 30, "bold"))
+        self.info_title.pack(side=LEFT, padx=20, pady=5)
+
+        """
+        SIDEBAR LOGIC
+        """
+        # Main Frame
+        self.info_main_frame = ctk.CTkFrame(self.info_window, width=800, height=630, fg_color="#32000C", corner_radius=0)
+        self.info_main_frame.pack(side=TOP, fill=BOTH, expand=True)
+        self.info_main_frame.pack_propagate(False)
+
+    def sidebar_menu(self):
+        # Left Side Bar
+        self.info_side_menu_frame = ctk.CTkFrame(self.info_main_frame, width=150, height=630, fg_color="#32000C", corner_radius=0)
+        self.info_side_menu_frame.pack(side=LEFT, fill=BOTH, expand=True)
+        self.info_side_menu_frame.pack_propagate(False)
+
+        self.stage_button = ctk.CTkButton(self.info_side_menu_frame, text="Stages", font=("Helvetica", 20, "bold"), 
+                                            image=self.stages_img, 
+                                            corner_radius=0, 
+                                            width=100, height=50, 
+                                            fg_color="#32000C", hover_color="#800020",
+                                            anchor="w",
+                                            command=self.open_stages)
+        self.stage_button.pack(side=TOP, pady=(0,0), fill=X)
+        self.stage_button.pack_propagate(False)
+
+        self.voltage_button = ctk.CTkButton(self.info_side_menu_frame, text="Voltage", font=("Helvetica", 20, "bold"), 
+                                            image=self.voltage_img, 
+                                            corner_radius=0, 
+                                            width=100, height=50, 
+                                            fg_color="#32000C", hover_color="#800020",
+                                            anchor="w",
+                                            command=self.open_voltages)
+        self.voltage_button.pack(side=TOP, pady=(5,0), fill=X)
+        self.voltage_button.pack_propagate(False)
+
+        # Main content Frame
+        self.main_content_frame = ctk.CTkFrame(self.info_main_frame, width=650, height = 630, fg_color="#D996A8", corner_radius=0)
+        self.main_content_frame.pack(side=LEFT, fill=BOTH, expand=True)
+        self.main_content_frame.pack_propagate(False)
+
+    def stage_content(self):
+
+        self.info_main_frame_top = ctk.CTkFrame(self.main_content_frame, width=650, height=110, fg_color="#7D3C4A", corner_radius=0)
+        self.info_main_frame_top.pack(side=TOP, fill=BOTH, expand=True)
+        self.info_main_frame_top.pack_propagate(False)
+
+        self.seperator_frame = ctk.CTkFrame(self.main_content_frame, width=650, height=20, fg_color="white", corner_radius=0)
+        self.seperator_frame.pack(side=TOP, fill=BOTH, expand=False)
+        self.seperator_frame.pack_propagate(False)
+
+        self.content_frame = ctk.CTkFrame(self.main_content_frame, width=650, height=500, fg_color="#D996A8", corner_radius=0)
+        self.content_frame.pack(side=TOP, fill=BOTH, expand=True)
+        self.content_frame.pack_propagate(False)
+
+        self.setting_title = ctk.CTkLabel(self.info_main_frame_top, text="Stages", font=("Helvetica", 40, "bold"))
+        self.setting_title.pack(side=LEFT, padx=25, pady=10)
+
+        self.s1f = ctk.CTkFrame(self.content_frame, width=650, height=70, fg_color="#FFEBEB", corner_radius=30, border_color="#32000C", border_width=5)
+        self.s1f.pack(side=TOP, fill=BOTH, expand=True, pady=10, padx=20)
+        self.s1f.pack_propagate(False)
+
+        self.s2f = ctk.CTkFrame(self.content_frame, width=650, height=70, fg_color="#FFEBEB", 
+                         corner_radius=30, border_color="#32000C", border_width=5)
+        self.s2f.pack(side=TOP, fill=BOTH, expand=True, pady=10, padx=20)
+        self.s2f.pack_propagate(False)
+
+        self.s3f = ctk.CTkFrame(self.content_frame, width=650, height=70, fg_color="#FFEBEB", 
+                                corner_radius=30, border_color="#32000C", border_width=5)
+        self.s3f.pack(side=TOP, fill=BOTH, expand=True, pady=10, padx=20)
+        self.s3f.pack_propagate(False)
+
+        self.s4f = ctk.CTkFrame(self.content_frame, width=650, height=70, fg_color="#FFEBEB", 
+                                corner_radius=30, border_color="#32000C", border_width=5)
+        self.s4f.pack(side=TOP, fill=BOTH, expand=True, pady=10, padx=20)
+        self.s4f.pack_propagate(False)
+
+        self.s5f = ctk.CTkFrame(self.content_frame, width=650, height=70, fg_color="#FFEBEB", 
+                                corner_radius=30, border_color="#32000C", border_width=5)
+        self.s5f.pack(side=TOP, fill=BOTH, expand=True, pady=10, padx=20)
+        self.s5f.pack_propagate(False)
+
+        # Stage 1
+        self.s1_title = ctk.CTkLabel(
+            self.s1f, 
+            text="Stage 1: Preheat",
+            font=("Helvetica", 24, "bold"),
+            text_color="#32000C"
+        )
+        self.s1_title.pack(side=LEFT, padx=20, pady=10)
+
+        self.s1if = ctk.CTkFrame(self.s1f, width=150, height=50, fg_color="#7D3C4A", 
+                                corner_radius=30, border_color="#32000C", border_width=5)
+        self.s1if.pack(anchor="e", fill=NONE, expand=True, pady=10, padx=20)
+        self.s1if.pack_propagate(False)
+
+        self.s1i_title = ctk.CTkLabel(
+            self.s1if, 
+            text="00:00",
+            font=("Helvetica", 24, "bold"),
+            text_color="#FFEBEB"
+        )
+        self.s1i_title.pack(anchor="center", padx=20, pady=10)
+
+        # Stage 2
+        self.s2_title = ctk.CTkLabel(
+            self.s2f,
+            text="Stage 2: Soak",
+            font=("Helvetica", 24, "bold"),
+            text_color="#32000C"
+        )
+        self.s2_title.pack(side=LEFT, padx=20, pady=10)
+
+        self.s2if = ctk.CTkFrame(self.s2f, width=150, height=50, fg_color="#7D3C4A", 
+                                corner_radius=30, border_color="#32000C", border_width=5)
+        self.s2if.pack(anchor="e", fill=NONE, expand=True, pady=10, padx=20)
+        self.s2if.pack_propagate(False)
+
+        self.s2i_title = ctk.CTkLabel(
+            self.s2if, 
+            text="00:00",
+            font=("Helvetica", 24, "bold"),
+            text_color="#FFEBEB"
+        )
+        self.s2i_title.pack(anchor="center", padx=20, pady=10)
+
+        # Stage 3
+        self.s3_title = ctk.CTkLabel(
+            self.s3f,
+            text="Stage 3: Reflow",
+            font=("Helvetica", 24, "bold"),
+            text_color="#32000C"
+        )
+        self.s3_title.pack(side=LEFT, padx=20, pady=10)
+
+        self.s3if = ctk.CTkFrame(self.s3f, width=150, height=50, fg_color="#7D3C4A", 
+                                corner_radius=30, border_color="#32000C", border_width=5)
+        self.s3if.pack(anchor="e", fill=NONE, expand=True, pady=10, padx=20)
+        self.s3if.pack_propagate(False)
+
+        self.s3i_title = ctk.CTkLabel(
+            self.s3if, 
+            text="00:00",
+            font=("Helvetica", 24, "bold"),
+            text_color="#FFEBEB"
+        )
+        self.s3i_title.pack(anchor="center", padx=20, pady=10)
+
+        # Stage 4
+        self.s4_title = ctk.CTkLabel(
+            self.s4f,
+            text="Stage 4: Cool",
+            font=("Helvetica", 24, "bold"),
+            text_color="#32000C"
+        )
+        self.s4_title.pack(side=LEFT, padx=20, pady=10)
+
+        self.s4if = ctk.CTkFrame(self.s4f, width=150, height=50, fg_color="#7D3C4A", 
+                                corner_radius=30, border_color="#32000C", border_width=5)
+        self.s4if.pack(anchor="e", fill=NONE, expand=True, pady=10, padx=20)
+        self.s4if.pack_propagate(False)
+
+        self.s4i_title = ctk.CTkLabel(
+            self.s4if, 
+            text="00:00",
+            font=("Helvetica", 24, "bold"),
+            text_color="#FFEBEB"
+        )
+        self.s4i_title.pack(anchor="center", padx=20, pady=10)
+
+        # Stage 5
+        self.s5_title = ctk.CTkLabel(
+            self.s5f,
+            text="Stage 5: Complete",
+            font=("Helvetica", 24, "bold"),
+            text_color="#32000C"
+        )
+        self.s5_title.pack(side=LEFT, padx=20, pady=10)
+
+        self.s5if = ctk.CTkFrame(self.s5f, width=150, height=50, fg_color="#7D3C4A", 
+                                corner_radius=30, border_color="#32000C", border_width=5)
+        self.s5if.pack(anchor="e", fill=NONE, expand=True, pady=10, padx=20)
+        self.s5if.pack_propagate(False)
+
+        self.s5i_title = ctk.CTkLabel(
+            self.s5if, 
+            text="00:00",
+            font=("Helvetica", 24, "bold"),
+            text_color="#FFEBEB"
+        )
+        self.s5i_title.pack(anchor="center", padx=20, pady=10)
+
+    def voltage_content(self):
+        self.info_main_frame_top = ctk.CTkFrame(self.main_content_frame, width=650, height=110, fg_color="#7D3C4A", corner_radius=0)
+        self.info_main_frame_top.pack(side=TOP, fill=BOTH, expand=True)
+        self.info_main_frame_top.pack_propagate(False)
+
+        self.seperator_frame = ctk.CTkFrame(self.main_content_frame, width=650, height=20, fg_color="white", corner_radius=0)
+        self.seperator_frame.pack(side=TOP, fill=BOTH, expand=False)
+        self.seperator_frame.pack_propagate(False)
+
+        self.content_frame = ctk.CTkFrame(self.main_content_frame, width=650, height=500, fg_color="#D996A8", corner_radius=0)
+        self.content_frame.pack(side=TOP, fill=BOTH, expand=True)
+        self.content_frame.pack_propagate(False)
+
+        self.setting_title = ctk.CTkLabel(self.info_main_frame_top, text="Voltage Calculation", font=("Helvetica", 40, "bold"))
+        self.setting_title.pack(side=LEFT, padx=25, pady=10)
+
+        #self.voltage_frame = ctk.CTkFrame(self.content_frame, width=650, height=300, fg_color="#FFEBEB", corner_radius=50, border_color="#32000C", border_width=5)
+        #self.voltage_frame.pack(anchor="center", fill=X, expand=True, pady=10, padx=20)
+        #self.voltage_frame.pack_propagate(False)
+
+        self.voltage_formula = ctk.CTkLabel(self.content_frame, text="", image=self.gangski_img)
+        self.voltage_formula.pack(anchor="center")
+
+    def open_stages(self):
+        for widget in self.main_content_frame.winfo_children():
+            widget.destroy()
+
+        self.stage_content()
+    
+    def open_voltages(self):
+        for widget in self.main_content_frame.winfo_children():
+            widget.destroy()
+
+        self.voltage_content()
+
+    """
+    CODE FOR THE TEMPERATURE C/F BUTTON CONFIGURATION
+    """
+
+    def toggle_temp(self):
+        if self.temp_type.get() == "C":
+            self.temp_type.set("F")
+            print(f"Current temp type: {self.temp_type.get()}")  # Debugging print statement
+        else:
+            self.temp_type.set("C")
+            print(f"Current temp type: {self.temp_type.get()}")  # Debugging print statement
+        # Update the graph y-axis label based on the temperature type
+        self.ax.set_ylabel(f"TEMPERATURE (°{self.temp_type.get()})", fontsize=25, color='white')
+        self.fig.canvas.draw_idle()  # Redraw the graph to reflect the changes
+    
+    """"
+    CODE FOR THE GRAPH
+    """
+
+    """
+    GENERATE DATA VALUES TO PLOT
+    """
+
+    def data_gen(self):
+        t = self.data_gen.t  # Initialize time
+        while True:
+            t += 1
+            temp = np.exp(-0.05 * t) * 100  # Example: Decaying exponential for temperature simulation
+            #string = ser.readline().decode('utf-8').strip()
+            #values = string.split(",")
+            #hj, cj = map(lambda x: float(x.strip()), values) #get hot and cold junction voltage readings 
+            #temp=round(kconvert.mV_to_C(hj, cj),1) #convert mv to C
+            #if temp_type is F, convert to fahrienheit
+            if self.temp_type.get() == "F":
+                temp *= float(9/5)
+                temp += 32
+            #print(temp)
+            yield t, temp
+
+    data_gen.t = -1
+    """
+    SCROLLING FUNCTION
+    """
+    def run(self, data):
+        t, y = data
+        self.xdata.append(t)
+        self.ydata.append(y)
+
+        if t > self.xsize:  # Scroll to the left
+            self.ax.set_xlim(t - self.xsize, t)
+
+        self.line.set_data(self.xdata, self.ydata)
+        return self.line,
+
+    def on_close_figure(self, event):
+        sys.exit(0)
+
+    """
+    GRAPH SETUP
+    """
+    def setup_graph(self):
+        self.xsize = 100  # Define X-axis size
+        self.fig, self.ax = plt.subplots(figsize=(15, 10))  # Adjust width and height
+
+        # change colour 
+
+        self.ax.set_facecolor("black")  # Change background color of the graph
+        self.fig.patch.set_facecolor("black")  # Change outer figure background
+
+        # Initialize line plot
+        self.line, = self.ax.plot([], [], lw=2, label = "Temperature", color = 'red')
+        self.ax.set_ylim(0, 250)
+        self.ax.set_xlim(0, self.xsize)
+        self.ax.grid(color='grey', linewidth=0.5, )
+        self.ax.tick_params(axis='both', labelsize=18, colors='white')  
+
+        # Increase Number of Gridlines
+        self.ax.xaxis.set_major_locator(ticker.MultipleLocator(5))  # Grid every 5 seconds
+        self.ax.yaxis.set_major_locator(ticker.MultipleLocator(10))  # Grid every 10°C
+
+        # Add Minor Gridlines
+        self.ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))  # Minor grid every 1s
+        self.ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))  # Minor grid every 5°C
+
+        self.ax.grid(True, which='major', color='gray', linewidth=1)
+        self.ax.grid(True, which='minor', color='gray', linestyle=':', linewidth=0.5)
+
+        hfont = {'font':'Arial', 'fontweight':'bold'}
+
+        # Set labels
+        self.ax.set_xlabel("TIME (s)", **hfont, fontsize=25, color='white')
+        self.ax.set_ylabel(f"TEMPERATURE (°{self.temp_type.get()})", **hfont, fontsize=25, color='white')
+        self.ax.set_title("REFLOW OVEN TEMPERATURE READINGS", **hfont, fontsize=30, color='white')
+
+        # Initialize data list
+        self.xdata, self.ydata = [], []
+
+        # Create an annotation (cursor temperature display)
+        self.annot = self.ax.annotate("", xy=(0, 0), xytext=(25, 25),
+                                    textcoords="offset points",
+                                    bbox=dict(boxstyle="round,pad=0.5", fc="pink", ec="black", lw=2),
+                                    arrowprops=dict(arrowstyle="->", color="white"), **hfont,
+                                    fontsize=18)
+        self.annot.set_visible(False)  # Hide initially
+
+        # Start graph animation
+        self.ani = animation.FuncAnimation(
+            self.fig, 
+            self.run, 
+            self.data_gen, 
+            blit=False, 
+            interval=100, 
+            repeat=False,
+            save_count=100  # Add this line to specify max frames to cache
+        )
+        # Connect hover event
+        self.fig.canvas.mpl_connect("motion_notify_event", self.on_hover)
+
+        # Embed Matplotlib figure in Tkinter
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.middle_graph_frame)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill=BOTH, expand=True)
+
+    """
+    CODE FOR THE CURSOR HOVER DISPLAY
+    """
+    def on_hover(self, event):
+        if event.inaxes == self.ax:  # Check if mouse is inside the graph area
+            x_cursor = event.xdata  # Get x-coordinate of cursor
+            if x_cursor is None or len(self.xdata) == 0:
+                return
+
+            # Find the nearest x-value in self.xdata
+            nearest_idx = min(range(len(self.xdata)), key=lambda i: abs(self.xdata[i] - x_cursor))
+            x_nearest, y_nearest = self.xdata[nearest_idx], self.ydata[nearest_idx]
+
+            # Update annotation position and text
+            self.annot.xy = (x_nearest, y_nearest)
+            self.annot.set_text(f"Time: {x_nearest:.1f}s\nTemp: {y_nearest:.1f}°°{self.temp_type.get()}")
+            self.annot.set_visible(True)
+
+            self.fig.canvas.draw_idle()  # Redraw to show annotation
+        else:
+            self.annot.set_visible(False)
+            self.fig.canvas.draw_idle()
+
+
+if __name__ == "__main__": 
+    window = ctk.CTk()
+    app = MainApp(window)
+    window.mainloop()
