@@ -1,4 +1,6 @@
 from tkinter import *
+from tkinter import ttk
+import tkinter as tk
 from PIL import Image, ImageDraw, ImageTk
 import customtkinter as ctk
 import matplotlib.pyplot as plt
@@ -9,19 +11,22 @@ import serial, serial.tools.list_ports
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.ticker as ticker
 import kconvert
+import tkinter.filedialog as filedialog
+from customtkinter import CTkComboBox
 
 """
 CONFIGURE SERIAL PORT
 """
+"""
 ser = serial.Serial(
-port='COM5',
+port='COM4',
     baudrate=115200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
     bytesize=serial.EIGHTBITS
 )
 ser.isOpen()
-
+"""
 """"
 COLORSCHEME
 """
@@ -139,7 +144,7 @@ class MainApp:
                                           image=self.export_img, width=30, height=70, 
                                           corner_radius=100, 
                                           border_width=5, border_color="black",
-                                          fg_color="#FFEBEB", hover_color="#D996A8")
+                                          fg_color="#FFEBEB", hover_color="#D996A8", command = self.open_export)
         self.export_button.configure(fg_color='white', text="")
         self.export_button.pack(side=LEFT, padx=(0,20))
 
@@ -165,9 +170,98 @@ class MainApp:
         # Set dial (foreground image, on top of display)
         self.dial = ctk.CTkLabel(self.stage_frame, image=self.dial_img, text="")
         self.dial.place(relx=0.5, rely=0.585, anchor="center")
+    """
+    EXPORT DATA WINDOW
+    """
+    def open_export(self):
+        #centre later !!!!!! :(((((
+        # Create Export Window
+        self.export_window = ctk.CTkToplevel(self.window)
+        self.export_window.title("Export Options")
+        self.export_window.geometry("500x290")
+        self.export_window.configure(bg= "#D996A8")
+        self.export_window.attributes("-topmost", 1)
+
+        self.export_top_frame = ctk.CTkFrame(self.export_window, width = 500, height = 70, fg_color="#32000C", corner_radius = 0)
+        self.export_top_frame.pack(side = TOP, fill=BOTH, expand=True)
+        self.export_top_frame.pack_propagate(True)
+
+        self.export_bottom_frame = ctk.CTkFrame(self.export_window, width = 500, height = 220, fg_color="#FFEBEB", corner_radius = 0)
+        self.export_bottom_frame.pack(side = TOP, fill=X, expand=True)
+        self.export_bottom_frame.pack_propagate(False)
+
+        self.export_format_frame = ctk.CTkFrame(self.export_bottom_frame, width = 500, height = 100, fg_color="#FFEBEB", corner_radius=0)
+        self.export_format_frame.pack(side = TOP, fill=X, anchor="center",expand=True)
+        self.export_format_frame.pack_propagate(False)
+
+        # Label
+        self.export_title = ctk.CTkLabel(self.export_top_frame, text="Select Export Options:", font=("Helvetica", 30, "bold"), text_color="white")
+        self.export_title.pack(side=TOP, fill=BOTH, anchor="center", padx=10, pady=(10,0))
+
+        self.seperator_frame = ctk.CTkFrame(self.export_top_frame, width=600, height=10, fg_color="white", corner_radius=0)
+        self.seperator_frame.pack(side=BOTTOM, fill=X, expand=False)
+        self.seperator_frame.pack_propagate(False)
+
+        # Multi-Select Listbox
+        self.export_format = ctk.CTkComboBox(self.export_format_frame, values = ["CSV", "PNG", "Excel", "PDF"], width = 300, height=100, font=("Helvetica", 25, "bold"), 
+                                             dropdown_font=("Helvetica", 20, "bold"), fg_color="#D996A8", dropdown_fg_color="#FFEBEB", button_color="#32000C", text_color="black", 
+                                             dropdown_text_color="black", dropdown_hover_color="#D996A8")
+        self.export_format.pack(side=BOTTOM, expand=True, fill=BOTH, padx=30, pady=10)
+        self.export_format.set("---")
+
+        # Confirm Button
+        confirm_button = ctk.CTkButton(self.export_bottom_frame, text="Export", fg_color="#D996A8", hover_color="#EE7C9A", command=self.export_data, font=("Helvetica", 20, "bold"), 
+        text_color="black", height=60, width=300)
+        confirm_button.pack(pady=30, padx=50)
+
+    def export_data(self): #average every 10 values since the serial port updates every 10s
+        #Fetch selected export format and save data accordingly.
+        export_type = self.export_format.get()  # Get selected format from combobox
+
+        if not export_type:
+            print("No export format selected")
+            return
+
+        # Ask the user where to save the file
+        filetypes = {
+            "CSV": [("CSV files", "*.csv")],
+            "PNG": [("PNG image", "*.png")],
+            "Excel": [("Excel files", "*.xlsx")],
+            "PDF": [("PDF files", "*.pdf")]
+        }
+        
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=filetypes[export_type][0][1], 
+            filetypes=filetypes[export_type]
+        )
+
+        if not file_path:
+            print("No file selected")
+            return  # User canceled save
+        
+        # Handle export logic
+        if export_type == "CSV":
+            import csv
+            with open(file_path, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(["Time (s)", f"Temperature (°{self.temp_type.get()})"])
+                writer.writerows(zip(self.xdata, self.ydata))
+        
+        elif export_type == "PNG":
+            self.fig.savefig(file_path, dpi=300, bbox_inches="tight")
+
+        elif export_type == "Excel":
+            import pandas as pd
+            df = pd.DataFrame({"Time (s)": self.xdata, f"Temperature (°{self.temp_type.get()})": self.ydata})
+            df.to_excel(file_path, index=False)
+
+        elif export_type == "PDF":
+            self.fig.savefig(file_path, dpi=300, bbox_inches="tight", format="pdf")
+
+        print(f"File saved: {file_path}")
 
     """
-    CODE FOR THE TEMPERATURE C/F BUTTON CONFIGURATION
+    TEMPERATURE C/F BUTTON CONFIGURATION
     """
 
     def toggle_temp(self):
@@ -180,8 +274,9 @@ class MainApp:
         # Update the graph y-axis label based on the temperature type
         self.ax.set_ylabel(f"TEMPERATURE (°{self.temp_type.get()})", fontsize=25, color='white')
         self.fig.canvas.draw_idle()  # Redraw the graph to reflect the changes
-        """"
-    CODE FOR THE GRAPH
+    
+    """"
+    GRAPH
     """
 
     """
@@ -192,16 +287,17 @@ class MainApp:
         t = self.data_gen.t  # Initialize time
         while True:
             t += 1
+            temp = np.sin(0.1*t)*100 +100
             #temp = np.exp(-0.05 * t) * 100  # Example: Decaying exponential for temperature simulation
-            string = ser.readline().decode('utf-8').strip()
-            values = string.split(",")
-            hj, cj = map(lambda x: float(x.strip()), values) #get hot and cold junction voltage readings 
-            temp=round(kconvert.mV_to_C(hj, cj),1) #convert mv to C
+            #temp = self.ser.readline().decode('utf-8').strip()
+            #values = string.split(",")
+            #hj, cj = map(lambda x: float(x.strip()), values) #get hot and cold junction voltage readings 
+            #temp=round(kconvert.mV_to_C(hj, cj),1) #convert mv to C
             #if temp_type is F, convert to fahrienheit
             if self.temp_type.get() == "F":
                 temp *= float(9/5)
                 temp += 32
-            print(temp)
+            #print(temp)
             yield t, temp
 
     data_gen.t = -1
