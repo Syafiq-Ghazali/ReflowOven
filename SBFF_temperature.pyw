@@ -452,20 +452,20 @@ class MainApp:
         self.export_window.attributes("-topmost", 1)
 
         self.export_top_frame = ctk.CTkFrame(self.export_window, width = 500, height = 70, fg_color="#32000C", corner_radius = 0)
-        self.export_top_frame.pack(side = TOP, fill=BOTH, expand=True)
+        self.export_top_frame.pack(side = TOP, fill=X, expand=True)
         self.export_top_frame.pack_propagate(True)
 
-        self.export_bottom_frame = ctk.CTkFrame(self.export_window, width = 500, height = 220, fg_color="#FFEBEB", corner_radius = 0)
+        self.export_bottom_frame = ctk.CTkFrame(self.export_window, width = 500, height = 220, fg_color="#D996A8", corner_radius = 0)
         self.export_bottom_frame.pack(side = TOP, fill=X, expand=True)
         self.export_bottom_frame.pack_propagate(False)
 
-        self.export_format_frame = ctk.CTkFrame(self.export_bottom_frame, width = 500, height = 100, fg_color="#FFEBEB", corner_radius=0)
+        self.export_format_frame = ctk.CTkFrame(self.export_bottom_frame, width = 500, height = 100, fg_color="#D996A8", corner_radius=0)
         self.export_format_frame.pack(side = TOP, fill=X, anchor="center",expand=True)
         self.export_format_frame.pack_propagate(False)
 
         # Label
         self.export_title = ctk.CTkLabel(self.export_top_frame, text="Select Export Options:", font=("Helvetica", 30, "bold"), text_color="white")
-        self.export_title.pack(side=TOP, fill=BOTH, anchor="center", padx=10, pady=(10,0))
+        self.export_title.pack(side=TOP, fill=BOTH, anchor="center", padx=10, pady=(20,15))
 
         self.seperator_frame = ctk.CTkFrame(self.export_top_frame, width=600, height=10, fg_color="white", corner_radius=0)
         self.seperator_frame.pack(side=BOTTOM, fill=X, expand=False)
@@ -473,14 +473,14 @@ class MainApp:
 
         # Multi-Select Listbox
         self.export_format = ctk.CTkComboBox(self.export_format_frame, values = ["CSV", "PNG", "Excel", "PDF"], width = 300, height=100, font=("Helvetica", 25, "bold"), 
-                                             dropdown_font=("Helvetica", 20, "bold"), fg_color="#D996A8", dropdown_fg_color="#FFEBEB", button_color="#32000C", text_color="black", 
-                                             dropdown_text_color="black", dropdown_hover_color="#D996A8")
-        self.export_format.pack(side=BOTTOM, expand=True, fill=BOTH, padx=30, pady=10)
+                                             dropdown_font=("Helvetica", 20, "bold"), fg_color="#7D3C4A", dropdown_fg_color="#FFEBEB", button_color="#32000C", text_color="white", 
+                                             dropdown_text_color="black", dropdown_hover_color="#D996A8", corner_radius=15, border_color="#32000C", border_width=5)
+        self.export_format.pack(side=BOTTOM, expand=True, fill=BOTH, padx=30, pady=(20,5))
         self.export_format.set("---")
 
         # Confirm Button
-        confirm_button = ctk.CTkButton(self.export_bottom_frame, text="Export", fg_color="#D996A8", hover_color="#EE7C9A", command=self.export_data, font=("Helvetica", 20, "bold"), 
-        text_color="black", height=60, width=300)
+        confirm_button = ctk.CTkButton(self.export_bottom_frame, text="Export", fg_color="#FFEBEB", hover_color="#EE7C9A", command=self.export_data, font=("Helvetica", 20, "bold"), 
+                        text_color="#32000C", height=60, width=300, border_color="#32000C", border_width=5, corner_radius=15)
         confirm_button.pack(pady=30, padx=50)
 
     def export_data(self): #average every 10 values since the serial port updates every 10s
