@@ -1,8 +1,8 @@
 from tkinter import *
-from tkinter import ttk
 import tkinter as tk
 from PIL import Image, ImageDraw, ImageTk
 import customtkinter as ctk
+from customtkinter import CTkComboBox
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import sys, time, math
@@ -10,16 +10,14 @@ import numpy as np
 import serial, serial.tools.list_ports
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.ticker as ticker
-import kconvert
 import tkinter.filedialog as filedialog
-from customtkinter import CTkComboBox
 
 """
 CONFIGURE SERIAL PORT
 """
 """
 ser = serial.Serial(
-port='COM4',
+port='COM7',
     baudrate=115200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
@@ -48,6 +46,9 @@ class MainApp:
 
         self.temp_type = StringVar(value = "C") #set temperature initially in celcius
 
+        # Cleanup after closing the window
+        #self.window.protocol("WM_DELETE_WINDOW", self.close_window)
+
         # Load Images
         self.load_images()
         
@@ -55,6 +56,17 @@ class MainApp:
         self.setup_microwave()
         self.setup_leftframe()
         self.setup_rightframe()
+
+    """
+    window closing cleanup function
+    """
+    #def close_window(self):
+        #if self.ani is not None:
+        #    self.ani.event_source.stop()
+        #plt.close('all')
+        #self.window.quit()
+        #self.window.destroy()
+
 
     # Loading in Images
     def load_images(self):
@@ -502,8 +514,11 @@ class MainApp:
             with open(file_path, mode='w', newline='') as file:
                 writer = csv.writer(file)
                 writer.writerow(["Time (s)", f"Temperature (°{self.temp_type.get()})"])
-                writer.writerows(zip(self.xdata, self.ydata))
-        
+                if self.temp_type.get() == "C":
+                    writer.writerows(zip(self.xdata, self.ydata_c))
+                elif self.temp_type.get() == "F":
+                    writer.writerows(zip(self.xdata, self.ydata_f))
+
         elif export_type == "PNG":
             self.fig.savefig(file_path, dpi=300, bbox_inches="tight")
 
@@ -524,12 +539,15 @@ class MainApp:
     def toggle_temp(self):
         if self.temp_type.get() == "C":
             self.temp_type.set("F")
+            self.line_c.set_visible(False)
+            self.line_f.set_visible(True)
             print(f"Current temp type: {self.temp_type.get()}")  # Debugging print statement
         else:
             self.temp_type.set("C")
+            self.line_f.set_visible(False)
+            self.line_c.set_visible(True)
             print(f"Current temp type: {self.temp_type.get()}")  # Debugging print statement
         # Update the graph y-axis label based on the temperature type
-        self.ax.set_ylabel(f"TEMPERATURE (°{self.temp_type.get()})", fontsize=25, color='white')
         self.fig.canvas.draw_idle()  # Redraw the graph to reflect the changes
     
     """GRAPH"""
@@ -540,31 +558,35 @@ class MainApp:
         t = self.data_gen.t  # Initialize time
         while True:
             t += 1
-            temp = np.sin(0.1*t)*100 +100
+            temp_c = np.sin(0.1*t)*100 +100
             #temp = np.exp(-0.05 * t) * 100  # Example: Decaying exponential for temperature simulation
-            #temp = self.ser.readline().decode('utf-8').strip()
+            #temp = float(ser.readline().decode('utf-8').strip())
             #values = string.split(",")
             #hj, cj = map(lambda x: float(x.strip()), values) #get hot and cold junction voltage readings 
             #temp=round(kconvert.mV_to_C(hj, cj),1) #convert mv to C
             #if temp_type is F, convert to fahrienheit
-            if self.temp_type.get() == "F":
-                temp *= float(9/5)
-                temp += 32
+            temp_f = (temp_c * 9/5) + 32
             #print(temp)
-            yield t, temp
+            yield t, temp_c, temp_f
 
     data_gen.t = -1
     """SCROLLING"""
     def run(self, data):
-        t, y = data
+        #if data is None:
+        #    return self.line_c, self.line_f
+        
+        t, temp_c, temp_f = data
         self.xdata.append(t)
-        self.ydata.append(y)
+        self.ydata_c.append(temp_c)
+        self.ydata_f.append(temp_f)
 
         if t > self.xsize:  # Scroll to the left
             self.ax.set_xlim(t - self.xsize, t)
 
-        self.line.set_data(self.xdata, self.ydata)
-        return self.line,
+        self.line_c.set_data(self.xdata, self.ydata_c)
+        self.line_f.set_data(self.xdata, self.ydata_f)
+
+        return self.line_c, self.line_f,
 
     def on_close_figure(self, event):
         sys.exit(0)
@@ -572,6 +594,8 @@ class MainApp:
     """GRAPH SETUP"""
 
     def setup_graph(self):
+        #plt.close('all')
+
         self.xsize = 100  # Define X-axis size
         self.fig, self.ax = plt.subplots(figsize=(15, 10))  # Adjust width and height
 
@@ -581,7 +605,8 @@ class MainApp:
         self.fig.patch.set_facecolor("black")  # Change outer figure background
 
         # Initialize line plot
-        self.line, = self.ax.plot([], [], lw=2, label = "Temperature", color = 'red')
+        self.line_c, = self.ax.plot([], [], lw=2, label = "Temperature (°C)", color = 'red')
+        self.line_f, = self.ax.plot([], [], lw=2, label="Temperature(°F)", color="#73e6ff", visible=False)
         self.ax.set_ylim(0, 250)
         self.ax.set_xlim(0, self.xsize)
         self.ax.grid(color='grey', linewidth=0.5, )
@@ -606,12 +631,12 @@ class MainApp:
         self.ax.set_title("REFLOW OVEN TEMPERATURE READINGS", **hfont, fontsize=30, color='white')
 
         # Initialize data list
-        self.xdata, self.ydata = [], []
+        self.xdata, self.ydata_c, self.ydata_f = [], [], []
 
         # Create an annotation (cursor temperature display)
         self.annot = self.ax.annotate("", xy=(0, 0), xytext=(25, 25),
                                     textcoords="offset points",
-                                    bbox=dict(boxstyle="round,pad=0.5", fc="pink", ec="black", lw=2),
+                                    bbox=dict(boxstyle="round,pad=0.5", fc="#FFEBEB", ec="black", lw=2),
                                     arrowprops=dict(arrowstyle="->", color="white"), **hfont,
                                     fontsize=18)
         self.annot.set_visible(False)  # Hide initially
@@ -643,7 +668,11 @@ class MainApp:
 
             # Find the nearest x-value in self.xdata
             nearest_idx = min(range(len(self.xdata)), key=lambda i: abs(self.xdata[i] - x_cursor))
-            x_nearest, y_nearest = self.xdata[nearest_idx], self.ydata[nearest_idx]
+            
+            if self.temp_type.get() =="C":
+                x_nearest, y_nearest = self.xdata[nearest_idx], self.ydata_c[nearest_idx]
+            elif self.temp_type.get() == "F":
+                x_nearest, y_nearest = self.xdata[nearest_idx], self.ydata_f[nearest_idx]
 
             # Update annotation position and text
             self.annot.xy = (x_nearest, y_nearest)
