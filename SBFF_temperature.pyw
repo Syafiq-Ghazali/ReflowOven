@@ -558,24 +558,20 @@ class MainApp:
     
     def data_gen(self):
         while True:
-            if self.ser.in_waiting:
-                line = ser.readline().decode('utf-8').strip()
-                print(f"data: {line}")
+            line = ser.readline().decode('utf-8').strip()
+            parts= line.split(",")
 
-                parts= line.split(",")
+            if len(parts) == 3:
+                try:
+                    temp_c = float(parts[0].strip())
+                    state = float(parts[1].strip())
+                    t = float(parts[2].strip())
+                    print(f"temp:{temp_c}, state:{state}, time:{t}")
 
-                if len(parts) == 3:
-                    try:
-                        temp_c = float(parts[0].strip())
-                        state = float(parts[1].strip())
-                        t = float(parts[3].strip())
+                    yield temp_c, state, t
+                except ValueError:
+                    print(f"Non numeric data recieved: {line}")
 
-                        yield temp_c, state, t
-                    except ValueError:
-                        print(f"Non numeric data recieved: {line}")
-
-                else:
-                    print(f"error: expected 3 values, but we have {len(parts)}")
 
     """SCROLLING"""
     def run(self, data):
