@@ -15,19 +15,17 @@ import tkinter.filedialog as filedialog
 """
 CONFIGURE SERIAL PORT
 """
-"""
+
 ser = serial.Serial(
-port='COM7',
+port='COM5',
     baudrate=115200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
     bytesize=serial.EIGHTBITS
 )
 ser.isOpen()
-"""
-"""
-COLORSCHEME
-"""
+
+"""COLOR SCHEME"""
 # Light White: #FFEBEB
 # Dark Pink: #EE7C9A
 # Reddish Pink: #C30130
@@ -555,21 +553,26 @@ class MainApp:
     """GENERATE DATA VALUES TO PLOT"""
     
     def data_gen(self):
-        t = self.data_gen.t  # Initialize time
         while True:
-            t += 1
-            temp_c = np.sin(0.1*t)*100 +100
-            #temp = np.exp(-0.05 * t) * 100  # Example: Decaying exponential for temperature simulation
-            #temp = float(ser.readline().decode('utf-8').strip())
-            #values = string.split(",")
-            #hj, cj = map(lambda x: float(x.strip()), values) #get hot and cold junction voltage readings 
-            #temp=round(kconvert.mV_to_C(hj, cj),1) #convert mv to C
-            #if temp_type is F, convert to fahrienheit
-            temp_f = (temp_c * 9/5) + 32
-            #print(temp)
-            yield t, temp_c, temp_f
+            if self.ser.in_waiting:
+                line = ser.readline().decode('utf-8').strip()
+                print(f"data: {line}")
 
-    data_gen.t = -1
+                parts= line.split(",")
+
+                if len(parts) == 3:
+                    try:
+                        temp_c = float(parts[0].strip())
+                        state = float(parts[1].strip())
+                        t = float(parts[3].strip())
+
+                        yield temp_c, state, t
+                    except ValueError:
+                        print(f"Non numeric data recieved: {line}")
+
+                else:
+                    print(f"error: expected 3 values, but we have {len(parts)}")
+
     """SCROLLING"""
     def run(self, data):
         #if data is None:
