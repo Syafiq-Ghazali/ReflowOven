@@ -75,9 +75,9 @@ class MainApp:
         self.stage1_img = ctk.CTkImage(Image.open("stage1.png"), size=(180,180))
         self.stage2_img = ctk.CTkImage(Image.open("stage2.png"), size=(120,120))
         self.stage3_img = ctk.CTkImage(Image.open("stage3.png"), size=(180,180))
-        self.stage4_img = ctk.CTkImage(Image.open("stage4.png"), size=(120,120))
-        self.stage5_img = ctk.CTkImage(Image.open("stage5.png"), size=(180,180))
-        self.stage6_img = ctk.CTkImage(Image.open("stage6.png"), size=(120,120))
+        self.stage4_img = ctk.CTkImage(Image.open("stage4.png"), size=(180,180))
+        self.stage5_img = ctk.CTkImage(Image.open("stage5.png"), size=(120,120))
+        self.stage6_img = ctk.CTkImage(Image.open("stage6.png"), size=(180,180))
         self.back_img = ctk.CTkImage(Image.open("back.png"), size=(18,25))
         self.stages_img = ctk.CTkImage(Image.open("stages.png"), size=(25,22))
         self.voltage_img = ctk.CTkImage(Image.open("voltage.png"), size=(25,22))
@@ -149,7 +149,7 @@ class MainApp:
         """
         self.information_button = ctk.CTkButton(self.option_frame, image=self.info_img, width=30, 
                                                 height=70, fg_color="#FFEBEB", hover_color="#D996A8", corner_radius=100,
-                                                border_width=5, border_color="black",
+                                                border_width=5, border_color="#32000C",
                                                 command=self.open_information)
         self.information_button.configure(fg_color='white', text="")
         self.information_button.pack(side=LEFT, padx=(30,0))
@@ -163,7 +163,7 @@ class MainApp:
         self.export_button = ctk.CTkButton(self.option_frame, 
                                           image=self.export_img, width=30, height=70, 
                                           corner_radius=100, 
-                                          border_width=5, border_color="black",
+                                          border_width=5, border_color="#32000C",
                                           fg_color="#FFEBEB", hover_color="#D996A8", command = self.open_export)
         self.export_button.configure(fg_color='white', text="")
         self.export_button.pack(side=LEFT, padx=(0,20))
@@ -173,7 +173,7 @@ class MainApp:
         """
         self.status_border = ctk.CTkFrame(self.status_frame, width=370, height=75, 
                                           fg_color="pink", corner_radius=20,
-                                          border_color="black", border_width=5)
+                                          border_color="#32000C", border_width=5)
         self.status_border.pack(side=TOP, fill=Y, pady=(10,5))
         self.status_border.pack_propagate(False)
 
@@ -185,8 +185,64 @@ class MainApp:
         self.dial_display.place(relx=0.5, rely=0.585, anchor="center")
 
         # Set dial (foreground image, on top of display)
-        self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage0_img, text="")
-        self.dial.place(relx=0.5, rely=0.585, anchor="center")
+        """ DIAL LOGIC """
+        state = 0.0
+
+        if state == 1.0:
+            self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage1_img, text="")
+            self.dial.place(relx=0.5, rely=0.585, anchor="center")
+
+            self.status = ctk.CTkLabel(self.status_border, font=("Arial", 25, "bold"), 
+                                       text_color="#32000C", text="IN PROGRESS...")
+            self.status.pack(side=LEFT, padx=(20,0))
+
+        elif state == 2.0:
+            self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage2_img, text="")
+            self.dial.place(relx=0.5, rely=0.585, anchor="center")
+
+            self.status = ctk.CTkLabel(self.status_border, font=("Arial", 25, "bold"), 
+                                       text_color="#32000C", text="IN PROGRESS...")
+            self.status.pack(side=LEFT, padx=(20,0))
+
+        elif state == 3.0:
+            self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage3_img, text="")
+            self.dial.place(relx=0.5, rely=0.585, anchor="center")
+
+            self.status = ctk.CTkLabel(self.status_border, font=("Arial", 25, "bold"), 
+                                       text_color="#32000C", text="IN PROGRESS...")
+            self.status.pack(side=LEFT, padx=(20,0))
+
+        elif state == 4.0:
+            self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage4_img, text="")
+            self.dial.place(relx=0.5, rely=0.585, anchor="center")
+
+            self.status = ctk.CTkLabel(self.status_border, font=("Arial", 25, "bold"), 
+                                       text_color="#32000C", text="IN PROGRESS...")
+            self.status.pack(side=LEFT, padx=(20,0))
+
+        elif state == 5.0:
+            self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage5_img, text="")
+            self.dial.place(relx=0.5, rely=0.585, anchor="center")
+
+            self.status = ctk.CTkLabel(self.status_border, font=("Arial", 25, "bold"), 
+                                       text_color="#32000C", text="COOLING...")
+            self.status.pack(side=LEFT, padx=(20,0))
+
+        elif state == 6.0:
+            self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage6_img, text="")
+            self.dial.place(relx=0.5, rely=0.585, anchor="center")
+
+            self.status = ctk.CTkLabel(self.status_border, font=("Arial", 25, "bold"), 
+                                       text_color="#0B3D2E", text="DONE!")
+            self.status.pack(side=LEFT, padx=(20,0))
+
+        else:
+            self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage0_img, text="")
+            self.dial.place(relx=0.5, rely=0.585, anchor="center")
+
+            self.status = ctk.CTkLabel(self.status_border, font=("Arial", 25, "bold"), 
+                                       text_color="#32000C", text="OVEN OFF")
+            self.status.pack(side=LEFT, padx=(20,0))
 
     def open_information(self):
         self.info_window = ctk.CTkToplevel(self.window)  # Creates a new top-level window
@@ -597,6 +653,7 @@ class MainApp:
         """
 
     """SCROLLING"""
+
     def run(self, data):
         #if data is None:
         #    return self.line_c, self.line_f
@@ -635,7 +692,6 @@ class MainApp:
 
         # Redraw the canvas to apply the changes
         self.fig.canvas.draw_idle()
-
 
     def setup_graph(self):
         #plt.close('all')
@@ -707,6 +763,7 @@ class MainApp:
         self.canvas.get_tk_widget().pack(fill=BOTH, expand=True)
 
     """HOVER DISPLAY"""
+    
     def on_hover(self, event):
         if event.inaxes == self.ax:  # Check if mouse is inside the graph area
             x_cursor = event.xdata  # Get x-coordinate of cursor
