@@ -15,16 +15,15 @@ import tkinter.filedialog as filedialog
 """
 CONFIGURE SERIAL PORT
 """
-"""
 ser = serial.Serial(
-port='COM5',
+port='COM4',
     baudrate=115200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
     bytesize=serial.EIGHTBITS
 )
 ser.isOpen()
-"""
+
 """COLOR SCHEME"""
 # Light White: #FFEBEB
 # Dark Pink: #EE7C9A
@@ -568,6 +567,7 @@ class MainApp:
     """GENERATE DATA VALUES TO PLOT"""
     
     def data_gen(self):
+        """
         t = self.data_gen.t
         while True:
             t+=1
@@ -577,8 +577,8 @@ class MainApp:
             yield t, temp_c, temp_f
 
     data_gen.t = -1
-
-    """
+        """
+    
         while True:
             line = ser.readline().decode('utf-8').strip()
             parts= line.split(",")
@@ -594,14 +594,14 @@ class MainApp:
                     yield temp_c, temp_f, state, t
                 except ValueError:
                     print(f"Non numeric data recieved: {line}")
-        """
+        
 
     """SCROLLING"""
     def run(self, data):
         #if data is None:
         #    return self.line_c, self.line_f
         
-        t, temp_c, temp_f = data
+        t, temp_c, temp_f, state= data
         self.xdata.append(t)
         self.ydata_c.append(temp_c)
         self.ydata_f.append(temp_f)
@@ -640,7 +640,7 @@ class MainApp:
     def setup_graph(self):
         #plt.close('all')
 
-        self.xsize = 100  # Define X-axis size
+        self.xsize = 250  # Define X-axis size
         self.fig, self.ax = plt.subplots(figsize=(15, 10))  # Adjust width and height
 
         # change colour 
