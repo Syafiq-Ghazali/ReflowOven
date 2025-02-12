@@ -44,6 +44,8 @@ PreSoak:   db '  PreHeat/Soak  ', 0
 RampPeak:  db '  Ramp To Peak  ', 0
 Reflow:    db '     Reflow     ', 0
 Cooling:   db '     Cooling    ', 0
+Restmsg:   db '******MANUAL****', 0
+Restmsgnd: db '*****RESTART****', 0
 
 Blank1:    db ' ', 0
 
@@ -495,6 +497,22 @@ abort:
 	lcall waitms
 	ret
 	
+restartmessage:
+	mov a, FSM1_state
+	cjne a, #0, goto
+	ljmp ignore
+goto:
+	Set_Cursor(1,1)
+	Send_Constant_String(#Restmsg)
+	Set_Cursor(2,1)
+	Send_Constant_String(#Restmsgnd)
+	mov R2, #250
+	lcall waitms
+	mov R2, #250
+	lcall waitms
+ignore:
+	ret
+	
 Startmenu:
 	Set_Cursor(1,1)
 	Send_Constant_String(#Start)		
@@ -502,22 +520,27 @@ Startmenu:
 	Display_BCD(temp_soak+1)
 	Set_Cursor(2,3)
 	Display_BCD(temp_soak)
+	Set_Cursor(2,5)
+	Send_Constant_String(#celsius)
 	Set_Cursor(2,6)
 	Display_BCD(time_soak)
-	Set_Cursor(2,10)
+	Set_Cursor(2,9)
 	Display_BCD(Temp_refl+1)
-	Set_Cursor(2,12)
+	Set_Cursor(2,11)
 	Display_BCD(Temp_refl)
+	Set_Cursor(2,13)
+	Send_Constant_String(#celsius)
 	Set_Cursor(2,15)
 	Display_BCD(Time_refl)
-	Set_Cursor(2,5)
-	Send_Constant_String(#Blank1)
 	Set_Cursor(2,8)
 	Send_Constant_String(#Blank1)
 	Set_Cursor(2,9)
 	Send_Constant_String(#Blank1)
+	Set_Cursor(2,1)
+	Send_Constant_String(#Blank1)
 	Set_Cursor(2,14)
 	Send_Constant_String(#Blank1)
+
 
 	ret
 	
@@ -615,7 +638,7 @@ NewDisplayeEnd:
 
 TimeSoakbutton:
 	lcall ADC_to_PB
-	mov c, PB2
+	mov c, PB4
 	jc Timereflbutton
 	mov a, time_soak
 	add a, #1
@@ -628,7 +651,7 @@ TimeSoakbuttondone:
 
 Timereflbutton:
 	lcall ADC_to_PB
-	mov c, PB0
+	mov c, PB2
 	jc Tempsoakbutton
 	mov a, Time_refl
 	add a, #1
@@ -641,7 +664,7 @@ Timereflbuttondone:
 	
 Tempsoakbutton:
 	lcall ADC_to_PB
-	mov c, PB3
+	mov c, PB5
 	jc Tempreflbutton
     mov a, temp_soak
     add a, #1
@@ -657,7 +680,7 @@ Tempsoakbutton:
     
 Tempreflbutton:
 	lcall ADC_to_PB
-	mov c, PB1
+	mov c, PB3
 	jc restart
     mov a, Temp_refl
     add a, #1
@@ -675,6 +698,7 @@ restart:
 	lcall ADC_to_PB
 	mov c, PB6
 	jc FSM1_state0
+	lcall restartmessage
 	mov FSM1_state, #0
 
 mov a, FSM1_state	
