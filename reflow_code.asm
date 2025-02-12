@@ -616,6 +616,10 @@ NewDisplayeEnd:
 	mov a, #','
 	lcall putchar
 	Send_BCD(FSM1_state)
+	mov a, #','
+	lcall putchar
+	Send_BCD(Runtime+1)
+	Send_BCD(Runtime)
 	mov a, #'\n'
 	lcall putchar
 	mov a, #'\r'
