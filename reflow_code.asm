@@ -595,13 +595,13 @@ main:
     mov runtime+1, #0
     mov temp_soak, #0x50 ;I hate the 8051 -> 220 and 150 greator than 8 bits so must use 16 bits
     mov temp_soak+1, #0x01
-	mov time_soak, #0x10
+	mov time_soak, #0x60
 	mov Temp_refl, #0x20
 	mov Temp_refl+1, #0x02
-	mov Time_refl, #0x10
-	mov Temp_cool, #0x10
+	mov Time_refl, #0x45
+	mov Temp_cool, #0x60
 	mov Temp_cool+1, #0x00
-	mov FSM1_state, #0x04
+	mov FSM1_state, #0x00
 	clr CLAW
 	setb alarm
 	
