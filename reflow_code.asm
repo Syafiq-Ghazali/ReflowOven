@@ -38,8 +38,13 @@ org 0x002B
 start:     db 'SBFF Press Start', 0 
 Blank:     db '                ', 0
 Values:    db 'State:', 0
-Values1:   db 'Runt:', 0
-Values2:   db 'Run:', 0
+Values1:   db 'Time:', 0
+Rampsoak:  db '  Ramp To Soak  ', 0
+PreSoak:   db '  PreHeat/Soak  ', 0
+RampPeak:  db '  Ramp To Peak  ', 0
+Reflow:    db '     Reflow     ', 0
+Cooling:   db '     Cooling    ', 0
+
 Blank1:    db ' ', 0
 
 AbortMsg:  db '  ***ABORTED***  ',0
@@ -57,8 +62,9 @@ LCD_D5		EQU P0.1
 LCD_D6		EQU P0.2
 LCD_D7		EQU P0.3
 PWM_OUT		EQU P1.0 
-ClAW 		EQU p1.5
 alarm 		EQU p0.5
+claw		EQU p1.6
+
 
 
 $NOLIST
@@ -94,6 +100,9 @@ time: ds 5
 pwm_counter: ds 1
 runtime: ds 2
 temp_safety: ds 1
+
+claw_counter:ds 1
+clawpwm: ds 1
 
 x: ds 4
 y: ds 4
@@ -138,11 +147,11 @@ Init_All:
 	orl P3M1, #0b00000000
 	anl P3M2, #0b11111111
 	
-	mov	P0M1, #0b00100000
-	mov	P0M2, #0b11011111
+;	mov	P0M1, #0b00100000
+;	mov	P0M2, #0b11011111
 	
 	; AINDIDS select if some pins are analog inputs or digital I/O:
-	orl AINDIDS, #0b10100011
+	orl AINDIDS, #0b10000011
 	orl ADCCON1, #0x01 ; Enable ADC
 	
 	; Initialize timer 2 for periodic interrupts
@@ -155,6 +164,7 @@ Init_All:
 	mov RCMP2L, #low(TIMER2_RELOAD)
 ; Init the free running 10 ms counter to zero
 	mov pwm_counter, #0
+	mov claw_counter, #0
 	; Enable the timer and interrupts
 	orl EIE, #0x80 ; Enable timer 2 interrupt ET2=1
 	setb TR2 ; Enable timer 2
@@ -290,10 +300,28 @@ Timer2_ISR:
 	subb a, pwm_counter ; If pwm_counter <= pwm then c=1
 	cpl c
 	mov PWM_OUT, c
-	mov a, pwm_counter
+;	mov a, pwm_counter
+	
+	inc claw_counter
+	clr c
+	mov a, clawpwm
+	subb a, claw_counter
+	cpl c
+	mov claw, c
+
+	mov a, claw_counter
+	cjne a, #100, clawjump
+	mov claw_counter, #0
+clawjump:
+		
+	mov a, pwm_counter	
 	cjne a, #100, Timer2_ISR_done
 	mov pwm_counter, #0
+
 	
+	
+	
+timecode:	
 	mov a, sec
 	add a, #1
 	da a
@@ -325,6 +353,26 @@ Timer2_ISR_done1:
 	pop psw
 	reti
 	
+menulogic:
+	mov a, FSM1_state
+	Set_Cursor(1,1)
+	cjne a, #1, state1jump
+	Send_Constant_String(#Rampsoak)
+state1jump:
+	cjne a, #2, state2jump
+	Send_Constant_String(#PreSoak)
+state2jump:
+	cjne a, #3, state3jump
+	Send_Constant_String(#RampPeak)
+state3jump:
+	cjne a, #4, state4jump
+	Send_Constant_String(#Reflow)
+state4jump:
+	cjne a, #5, state5jump
+	Send_Constant_String(#Cooling)
+state5jump:
+	ret	
+	
 
 tempcalcforthermo:
 	
@@ -337,65 +385,16 @@ tempcalcforthermo:
 	mov x+2, #0
 	mov x+3, #0
 	Load_y(50800)
-;	Load_y(40959)
-;	Load_y(300)
 	lcall mul32
-;	anl ADCCON0, #0xF0
-;	orl ADCCON0, #0x05 ;adc
-;	mov y+0, R0
-;	mov y+1, R1
-;	mov y+2, #0
-;	mov y+3, #0
+
 	Load_y (4095)
 	lcall div32
-	
-;	Load_y(333)
-;	lcall div32
-;	
-;	Load_y(1000000)
-;	lcall mul32
-;	
-;	Load_y(41)
-;	lcall div32
 	
 	Load_y(1831)
 	lcall mul32
 	
 	Load_y(25)
 	lcall div32
-	
-;anl ADCCON0, #0xF0
-;orl ADCCON0, #0x05
-;lcall Read_ADC 
-;	
-;mov y+0, R0
-;mov y+1, R1
-;mov y+2, #0
-;mov y+3, #0
-;	
-;lcall div32
-	
-;load_y(1000)
-;lcall mul32
-;Load_y(333000)
-;lcall div32
-	
-;Load_y(1000)
-;lcall mul32
-;Load_y(41)
-;lcall div32
-;	
-;	
-
-;	Load_y(50300) ; VCC voltage measured
-;	lcall mul32
-;	Load_y(4095) ; 2^12-1
-;	lcall div32
-;	
-;	Load_y(100)
-;	lcall mul32
-;	Load_y(2730000)
-;	lcall sub32
 	
 	lcall hex2bcdethan
 
@@ -523,42 +522,22 @@ Startmenu:
 	ret
 	
 Statmenu:
-	Set_Cursor(1,1)
-	Send_Constant_String(#Values)
+	lcall menulogic
 	Set_Cursor(2,1)
 	Send_Constant_String(#Values1)
-	Set_Cursor(2,11)
-	Send_Constant_String(#Values2)
-	Set_Cursor(1,9)
-	Send_Constant_String(#Blank1)
-	Set_Cursor(1,10)
-	Send_Constant_String(#Blank1)
 	Set_Cursor(2,10)
 	Send_Constant_String(#Blank1)
-	Set_Cursor(1,16)
-	Send_Constant_String(#Blank1)
-;	Set_Cursor(1,1)
-;	Display_BCD(bcd2+3)
-;	Display_BCD(bcd2+2)
-	Set_Cursor(1,10)
+	Set_Cursor(2,11)
 	Display_BCD(totaltemp+3)
 	Display_BCD(totaltemp+2)
-	Set_Cursor(1,7)
-	Display_BCD(FSM1_state)
-;	Set_Cursor(1,1)
-;	Display_BCD(bcd+3)	
-;	Display_BCD(bcd+2)
-	Set_Cursor(1,14)
+	Set_Cursor(2,15)
 	Send_Constant_String(#celsius)
-	Set_Cursor(1,15)
-	Send_Constant_String(#Blank1)
 	Set_Cursor(2,6)
 	Display_BCD(runtime+1)
 	Set_Cursor(2,8)
 	Display_BCD(runtime)
-	Set_Cursor(2,15)
-	Display_BCD(sec)
-	Set_Cursor(1,14)
+	Set_Cursor(2,16)
+	Send_Constant_String(#Blank1)	
 ret	 
 
 Read_ADC:
@@ -593,7 +572,7 @@ main:
     mov temp_safety+1, #0x00
     mov runtime, #0
     mov runtime+1, #0
-    mov temp_soak, #0x50 ;I hate the 8051 -> 220 and 150 greator than 8 bits so must use 16 bits
+    mov temp_soak, #0x50
     mov temp_soak+1, #0x01
 	mov time_soak, #0x60
 	mov Temp_refl, #0x20
@@ -602,8 +581,7 @@ main:
 	mov Temp_cool, #0x60
 	mov Temp_cool+1, #0x00
 	mov FSM1_state, #0x00
-	clr CLAW
-	setb alarm
+
 	
 		
 BeginMenu:
@@ -640,7 +618,6 @@ TimeSoakbutton:
 	mov c, PB2
 	jc Timereflbutton
 	mov a, time_soak
-;	Wait_Milli_Seconds(#99)
 	add a, #1
 	da a
 	mov time_soak, a
@@ -654,7 +631,6 @@ Timereflbutton:
 	mov c, PB0
 	jc Tempsoakbutton
 	mov a, Time_refl
-;	Wait_Milli_Seconds(#99)
 	add a, #1
 	da a
 	mov Time_refl, a
@@ -668,7 +644,6 @@ Tempsoakbutton:
 	mov c, PB3
 	jc Tempreflbutton
     mov a, temp_soak
- ;   Wait_Milli_Seconds(#99)
     add a, #1
     da a
     mov temp_soak, a
@@ -685,7 +660,6 @@ Tempreflbutton:
 	mov c, PB1
 	jc restart
     mov a, Temp_refl
-;    Wait_Milli_Seconds(#99)
     add a, #1
     da a
     mov Temp_refl, a
@@ -709,6 +683,7 @@ FSM1_state0:		;Go to state 1 if PB6 is pushed ;INTIAL;
 	mov a, FSM1_state
 	cjne a, #0, FSM1_state1
 	mov pwm, #0
+	mov clawpwm, #0
 	mov runtime, #0
 	mov runtime+1, #0
 	lcall ADC_to_PB
@@ -721,6 +696,7 @@ FSM1_state1:		;Stay in state 1 if temp<=150 ;RAMP TO SOAK;
 					;Set Power = 100&% and Sec = 0
 	cjne a, #1, FSM1_state2
 	mov pwm, #100
+	mov clawpwm, #0
 	mov sec, #0
     mov a, temp_soak
     clr c
@@ -800,7 +776,7 @@ FSM1_state5:		;Stay in state 5 if temp >= 60 ;cooling;
 					;Power set 0%
 	cjne a, #5, FSM1_state6
 	mov pwm, #0
-	setb CLAW
+	mov clawpwm, #100
 	mov a, totaltemp+3
 	cjne a, #0x00, FSM1_state5_done
 	mov a, Temp_cool
@@ -814,11 +790,21 @@ FSM1_state6:
 
 	cjne a, #6, FSM1_state6_done
 	mov pwm, #0
-	clr ClAW
+	mov clawpwm, #0
 	Set_Cursor(1,1)
 	Send_Constant_String(#donemsg)
 	Set_Cursor(2,1)
 	Send_Constant_String(#donemsgnd)
+	mov R2, #250
+	lcall waitms
+	mov R2, #250
+	lcall waitms
+	mov R2, #250
+	lcall waitms
+	mov R2, #250
+	lcall waitms
+	mov R2, #250
+	lcall waitms
 	mov R2, #250
 	lcall waitms
 	mov R2, #250
