@@ -333,16 +333,32 @@ tempcalcforthermo:
 	mov x+1, R1
 	mov x+2, #0
 	mov x+3, #0
-	
-	Load_y(49600)
+	Load_y(50800)
+;;	Load_y(40959)
+;	Load_y(300)
 	lcall mul32
+;	anl ADCCON0, #0xF0
+;	orl ADCCON0, #0x05 ;adc
+;	mov y+0, R0
+;	mov y+1, R1
+;	mov y+2, #0
+;	mov y+3, #0
 	Load_y (4095)
 	lcall div32
 	
-	load_y(100000)
+;	Load_y(333)
+;	lcall div32
+;	
+;	Load_y(1000000)
+;	lcall mul32
+;	
+;	Load_y(41)
+;	lcall div32
+	
+	Load_y(1831)
 	lcall mul32
 	
-	load_y(764)
+	Load_y(25)
 	lcall div32
 	
 ;anl ADCCON0, #0xF0
@@ -397,6 +413,7 @@ tempcalc:
 	lcall mul32
 	Load_y(4095) ; 2^12-1
 	lcall div32
+	
 	
 	Load_y(100)
 	lcall mul32
@@ -525,7 +542,7 @@ Statmenu:
 	Display_BCD(totaltemp+2)
 	Set_Cursor(1,7)
 	Display_BCD(FSM1_state)
-;	Set_Cursor(1,10)
+;	Set_Cursor(1,1)
 ;	Display_BCD(bcd+3)	
 ;	Display_BCD(bcd+2)
 	Set_Cursor(1,14)
@@ -596,6 +613,8 @@ NewDisplayeEnd:
 	
 	Send_BCD(totaltemp+3)
 	Send_BCD(totaltemp+2)
+	mov a, #','
+	lcall putchar
 	Send_BCD(FSM1_state)
 	mov a, #'\n'
 	lcall putchar
