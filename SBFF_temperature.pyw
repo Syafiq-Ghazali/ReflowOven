@@ -16,7 +16,7 @@ import tkinter.filedialog as filedialog
 CONFIGURE SERIAL PORT
 """
 ser = serial.Serial(
-port='COM4',
+port='COM5',
     baudrate=115200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
@@ -41,6 +41,8 @@ class MainApp:
         self.window.minsize(1300, 700)
         self.window.maxsize(1300, 700)
 
+        self.state=0.0
+
         self.temp_type = StringVar(value = "C") #set temperature initially in celcius
 
         # Cleanup after closing the window
@@ -63,6 +65,38 @@ class MainApp:
         plt.close('all')
         self.window.quit()
         self.window.destroy()
+
+    """GENERATE DATA VALUES TO PLOT"""
+    
+    def data_gen(self):
+        """
+        t = self.data_gen.t
+        while True:
+            t+=1
+            temp_c= np.sin(0.1*t)*100
+            temp_f = (temp_c * 9/5)+32
+
+            yield t, temp_c, temp_f
+
+    data_gen.t = -1
+        """
+    
+        while True:
+            line = ser.readline().decode('utf-8').strip()
+            parts= line.split(",")
+
+            if len(parts) == 3:
+                try:
+                    temp_c = float(parts[0].strip())
+                    self.state = float(parts[1].strip())
+                    t = float(parts[2].strip())
+                    print(f"temp:{temp_c}, state:{self.state}, time:{t}")
+                    temp_f = (temp_c * 9/5)+32
+
+                    yield temp_c, temp_f, self.state, t
+                except ValueError:
+                    print(f"Non numeric data recieved: {line}")
+        
 
     # Loading in Images
     def load_images(self):
@@ -185,9 +219,8 @@ class MainApp:
 
         # Set dial (foreground image, on top of display)
         """ DIAL LOGIC """
-        state = 0.0
 
-        if state == 1.0:
+        if self.state == 1.0:
             self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage1_img, text="")
             self.dial.place(relx=0.5, rely=0.585, anchor="center")
 
@@ -195,7 +228,7 @@ class MainApp:
                                        text_color="#32000C", text="IN PROGRESS...")
             self.status.pack(side=LEFT, padx=(20,0))
 
-        elif state == 2.0:
+        elif self.state == 2.0:
             self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage2_img, text="")
             self.dial.place(relx=0.5, rely=0.585, anchor="center")
 
@@ -203,7 +236,7 @@ class MainApp:
                                        text_color="#32000C", text="IN PROGRESS...")
             self.status.pack(side=LEFT, padx=(20,0))
 
-        elif state == 3.0:
+        elif self.state == 3.0:
             self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage3_img, text="")
             self.dial.place(relx=0.5, rely=0.585, anchor="center")
 
@@ -211,7 +244,7 @@ class MainApp:
                                        text_color="#32000C", text="IN PROGRESS...")
             self.status.pack(side=LEFT, padx=(20,0))
 
-        elif state == 4.0:
+        elif self.state == 4.0:
             self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage4_img, text="")
             self.dial.place(relx=0.5, rely=0.585, anchor="center")
 
@@ -219,7 +252,7 @@ class MainApp:
                                        text_color="#32000C", text="IN PROGRESS...")
             self.status.pack(side=LEFT, padx=(20,0))
 
-        elif state == 5.0:
+        elif self.state == 5.0:
             self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage5_img, text="")
             self.dial.place(relx=0.5, rely=0.585, anchor="center")
 
@@ -227,7 +260,7 @@ class MainApp:
                                        text_color="#32000C", text="COOLING...")
             self.status.pack(side=LEFT, padx=(20,0))
 
-        elif state == 6.0:
+        elif self.state == 6.0:
             self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage6_img, text="")
             self.dial.place(relx=0.5, rely=0.585, anchor="center")
 
@@ -620,45 +653,13 @@ class MainApp:
     
     """GRAPH"""
 
-    """GENERATE DATA VALUES TO PLOT"""
-    
-    def data_gen(self):
-        """
-        t = self.data_gen.t
-        while True:
-            t+=1
-            temp_c= np.sin(0.1*t)*100
-            temp_f = (temp_c * 9/5)+32
-
-            yield t, temp_c, temp_f
-
-    data_gen.t = -1
-        """
-    
-        while True:
-            line = ser.readline().decode('utf-8').strip()
-            parts= line.split(",")
-
-            if len(parts) == 3:
-                try:
-                    temp_c = float(parts[0].strip())
-                    state = float(parts[1].strip())
-                    t = float(parts[2].strip())
-                    print(f"temp:{temp_c}, state:{state}, time:{t}")
-                    temp_f = (temp_c * 9/5)+32
-
-                    yield temp_c, temp_f, state, t
-                except ValueError:
-                    print(f"Non numeric data recieved: {line}")
-        
-
     """SCROLLING"""
 
     def run(self, data):
         #if data is None:
         #    return self.line_c, self.line_f
         
-        t, temp_c, temp_f, state= data
+        t, temp_c, temp_f, self.state = data
         self.xdata.append(t)
         self.ydata_c.append(temp_c)
         self.ydata_f.append(temp_f)
@@ -686,7 +687,8 @@ class MainApp:
             self.ax.set_ylim(0, 500)
             self.ax.yaxis.set_major_locator(ticker.MultipleLocator(20))  # Grid every 20°F
             self.ax.yaxis.set_minor_locator(ticker.MultipleLocator(10))  # Minor grid every 10°F
-
+        
+        hfont = {'font':'Arial', 'fontweight':'bold'}
         # Update the label with the correct temperature unit
         self.ax.set_ylabel(f"TEMPERATURE (°{self.temp_type.get()})", **hfont, fontsize=25, color='white')
 
@@ -711,7 +713,7 @@ class MainApp:
         self.ax.set_ylim(0, 250)
         self.ax.set_xlim(0, self.xsize)
         self.ax.grid(color='grey', linewidth=0.5, )
-        self.ax.tick_params(axis='both', labelsize=18, colors='white')  
+        self.ax.tick_params(axis='both', labelsize=5, colors='white')  
 
         
         # Increase Number of Gridlines
