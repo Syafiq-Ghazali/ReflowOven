@@ -94,7 +94,7 @@ class MainApp:
                     print(f"temp:{temp_c}, state:{self.state}, time:{t}")
                     temp_f = (temp_c * 9/5)+32
 
-                    yield temp_c, temp_f, self.state, t
+                    yield temp_c, temp_f, t
                 except ValueError:
                     print(f"Non numeric data recieved: {line}")
         
@@ -661,7 +661,7 @@ class MainApp:
         #if data is None:
         #    return self.line_c, self.line_f
         
-        t, temp_c, temp_f, self.state = data
+        temp_c, temp_f, t = data
         self.xdata.append(t)
         self.ydata_c.append(temp_c)
         self.ydata_f.append(temp_f)
