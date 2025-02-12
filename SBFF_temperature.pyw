@@ -16,7 +16,7 @@ import tkinter.filedialog as filedialog
 CONFIGURE SERIAL PORT 
 """
 ser = serial.Serial(
-port='COM7',
+port='COM5',
     baudrate=115200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
@@ -89,10 +89,18 @@ class MainApp:
             if len(parts) == 3:
                 try:
                     temp_c = float(parts[0].strip())
-                    self.state = float(parts[1].strip())
+                    new_state = float(parts[1].strip())
                     t = float(parts[2].strip())
+                    self.buffer.append(temp_c)
+                    if len(self.buffer) == 9:
+                        temp_c = sum(self.buffer) / 9
+
                     print(f"temp:{temp_c}, state:{self.state}, time:{t}")
                     temp_f = (temp_c * 9/5)+32
+
+                    if new_state != self.state:
+                        self.state = new_state
+                        self.window.after(0, self.dial_logic)
 
                     yield temp_c, temp_f, t
                 except ValueError:
@@ -219,64 +227,33 @@ class MainApp:
         self.dial_display.place(relx=0.5, rely=0.585, anchor="center")
 
     def dial_logic(self):
-        # Set dial (foreground image, on top of display)
-        """ DIAL LOGIC """
+        """ Updates the dial display and status label based on the current state. """
+        for widget in self.status_border.winfo_children():
+            widget.destroy()
 
-        if self.state == 1.0:
-            self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage1_img, text="")
-            self.dial.place(relx=0.5, rely=0.585, anchor="center")
+        # Define mapping of states to images and text
+        state_mapping = {
+            1.0: (self.stage1_img, "IN PROGRESS...", "#32000C"),
+            2.0: (self.stage2_img, "IN PROGRESS...", "#32000C"),
+            3.0: (self.stage3_img, "IN PROGRESS...", "#32000C"),
+            4.0: (self.stage4_img, "IN PROGRESS...", "#32000C"),
+            5.0: (self.stage5_img, "COOLING...", "#32000C"),
+            6.0: (self.stage6_img, "DONE!", "#0B3D2E")
+        }
 
-            self.status = ctk.CTkLabel(self.status_border, font=("Arial", 25, "bold"), 
-                                       text_color="#32000C", text="IN PROGRESS...")
-            self.status.pack(side=LEFT, padx=(20,0))
+        # Get the image and text for the current state, default to stage 0
+        image, text, color = state_mapping.get(self.state, (self.stage0_img, "OVEN OFF", "#32000C"))
 
-        elif self.state == 2.0:
-            self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage2_img, text="")
-            self.dial.place(relx=0.5, rely=0.585, anchor="center")
+        # Update dial image
+        self.dial = ctk.CTkLabel(self.stage_frame, image=image, text="")
+        self.dial.place(relx=0.5, rely=0.585, anchor="center")
 
-            self.status = ctk.CTkLabel(self.status_border, font=("Arial", 25, "bold"), 
-                                       text_color="#32000C", text="IN PROGRESS...")
-            self.status.pack(side=LEFT, padx=(20,0))
-
-        elif self.state == 3.0:
-            self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage3_img, text="")
-            self.dial.place(relx=0.5, rely=0.585, anchor="center")
-
-            self.status = ctk.CTkLabel(self.status_border, font=("Arial", 25, "bold"), 
-                                       text_color="#32000C", text="IN PROGRESS...")
-            self.status.pack(side=LEFT, padx=(20,0))
-
-        elif self.state == 4.0:
-            self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage4_img, text="")
-            self.dial.place(relx=0.5, rely=0.585, anchor="center")
-
-            self.status = ctk.CTkLabel(self.status_border, font=("Arial", 25, "bold"), 
-                                       text_color="#32000C", text="IN PROGRESS...")
-            self.status.pack(side=LEFT, padx=(20,0))
-
-        elif self.state == 5.0:
-            self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage5_img, text="")
-            self.dial.place(relx=0.5, rely=0.585, anchor="center")
-
-            self.status = ctk.CTkLabel(self.status_border, font=("Arial", 25, "bold"), 
-                                       text_color="#32000C", text="COOLING...")
-            self.status.pack(side=LEFT, padx=(20,0))
-
-        elif self.state == 6.0:
-            self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage6_img, text="")
-            self.dial.place(relx=0.5, rely=0.585, anchor="center")
-
-            self.status = ctk.CTkLabel(self.status_border, font=("Arial", 25, "bold"), 
-                                       text_color="#0B3D2E", text="DONE!")
-            self.status.pack(side=LEFT, padx=(20,0))
-
-        else:
-            self.dial = ctk.CTkLabel(self.stage_frame, image=self.stage0_img, text="")
-            self.dial.place(relx=0.5, rely=0.585, anchor="center")
-
-            self.status = ctk.CTkLabel(self.status_border, font=("Arial", 25, "bold"), 
-                                       text_color="#32000C", text="OVEN OFF")
-            self.status.pack(side=LEFT, padx=(20,0))
+        # Update status label
+        self.status = ctk.CTkLabel(
+        self.status_border, font=("Arial", 25, "bold"), 
+        text_color=color, text=text
+        )
+        self.status.pack(side=LEFT, padx=(20, 0))
 
     def open_information(self):
         self.info_window = ctk.CTkToplevel(self.window)  # Creates a new top-level window
@@ -325,7 +302,7 @@ class MainApp:
         self.stage_button.pack(side=TOP, pady=(0,0), fill=X)
         self.stage_button.pack_propagate(False)
 
-        self.voltage_button = ctk.CTkButton(self.info_side_menu_frame, text="Voltage", font=("Helvetica", 20, "bold"), 
+        self.voltage_button = ctk.CTkButton(self.info_side_menu_frame, text="SBFFS", font=("Helvetica", 20, "bold"), 
                                             image=self.voltage_img, 
                                             corner_radius=0, 
                                             width=100, height=50, 
@@ -504,7 +481,7 @@ class MainApp:
         self.content_frame.pack(side=TOP, fill=BOTH, expand=True)
         self.content_frame.pack_propagate(False)
 
-        self.setting_title = ctk.CTkLabel(self.info_main_frame_top, text="Voltage Calculation", font=("Helvetica", 40, "bold"))
+        self.setting_title = ctk.CTkLabel(self.info_main_frame_top, text="SBFF's", font=("Helvetica", 40, "bold"))
         self.setting_title.pack(side=LEFT, padx=25, pady=10)
 
         #self.voltage_frame = ctk.CTkFrame(self.content_frame, width=650, height=300, fg_color="#FFEBEB", corner_radius=50, border_color="#32000C", border_width=5)
