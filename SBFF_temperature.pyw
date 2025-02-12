@@ -42,6 +42,9 @@ class MainApp:
         self.window.maxsize(1300, 700)
 
         self.state=0.0
+        self.time=0.0
+
+        self.buffer = []
 
         self.temp_type = StringVar(value = "C") #set temperature initially in celcius
 
@@ -100,7 +103,9 @@ class MainApp:
 
                     if new_state != self.state:
                         self.state = new_state
+                        self.time = t
                         self.window.after(0, self.dial_logic)
+                        self.window.after(0, self.stage_time_logic)
 
                     yield temp_c, temp_f, t
                 except ValueError:
@@ -497,6 +502,39 @@ class MainApp:
 
         self.stage_content()
     
+    def stage_time_logic(self):
+        """ Updates the stage time display based on the current state. """
+
+        # Dictionary mapping state values to corresponding frames
+        stage_frames = {
+            1.0: getattr(self, "s1if", None),
+            2.0: getattr(self, "s2if", None),
+            3.0: getattr(self, "s3if", None),
+            4.0: getattr(self, "s4if", None),
+            5.0: getattr(self, "s5if", None),
+            6.0: getattr(self, "s6if", None)  # Ensure self.s6if exists
+        }
+
+        # Check if the current state has a valid frame
+        stage_frame = stage_frames.get(self.state)
+
+        if stage_frame and stage_frame.winfo_exists():  # Ensure frame exists before modifying
+            # Remove old labels to prevent overlapping
+            for widget in stage_frame.winfo_children():
+                widget.destroy()
+
+            # Add new time label
+            stage_time_label = ctk.CTkLabel(
+                stage_frame,
+                text=f"{self.time:.2f}s",
+                font=("Helvetica", 24, "bold"),
+                text_color="#FFEBEB"
+            )
+            stage_time_label.pack(anchor="center", padx=20, pady=10)
+        else:
+            print(f"Warning: Stage frame for state {self.state} does not exist!")
+
+
     def open_voltages(self):
         for widget in self.main_content_frame.winfo_children():
             widget.destroy()
