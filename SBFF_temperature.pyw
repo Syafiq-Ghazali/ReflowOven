@@ -13,7 +13,7 @@ import matplotlib.ticker as ticker
 import tkinter.filedialog as filedialog
 
 """
-CONFIGURE SERIAL PORT
+CONFIGURE SERIAL PORT 
 """
 ser = serial.Serial(
 port='COM5',
@@ -55,6 +55,7 @@ class MainApp:
         self.setup_microwave()
         self.setup_leftframe()
         self.setup_rightframe()
+        self.dial_logic()
 
     """
     window closing cleanup function
@@ -217,6 +218,7 @@ class MainApp:
         self.dial_display = ctk.CTkLabel(self.stage_frame, image=self.dial_display_img, text="")
         self.dial_display.place(relx=0.5, rely=0.585, anchor="center")
 
+    def dial_logic(self):
         # Set dial (foreground image, on top of display)
         """ DIAL LOGIC """
 
@@ -715,7 +717,6 @@ class MainApp:
         self.ax.grid(color='grey', linewidth=0.5, )
         self.ax.tick_params(axis='both', labelsize=5, colors='white')  
 
-        
         # Increase Number of Gridlines
         self.ax.xaxis.set_major_locator(ticker.MultipleLocator(5))  # Grid every 5 seconds
         self.ax.yaxis.set_major_locator(ticker.MultipleLocator(10))  # Grid every 10°C
