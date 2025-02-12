@@ -763,7 +763,7 @@ class MainApp:
         self.canvas.get_tk_widget().pack(fill=BOTH, expand=True)
 
     """HOVER DISPLAY"""
-    
+
     def on_hover(self, event):
         if event.inaxes == self.ax:  # Check if mouse is inside the graph area
             x_cursor = event.xdata  # Get x-coordinate of cursor
