@@ -512,7 +512,7 @@ class MainApp:
             3.0: getattr(self, "s3if", None),
             4.0: getattr(self, "s4if", None),
             5.0: getattr(self, "s5if", None),
-            6.0: getattr(self, "s6if", None)  # Ensure self.s6if exists
+            6.0: getattr(self, "s6if", None)
         }
 
         # Check if the current state has a valid frame
@@ -533,7 +533,6 @@ class MainApp:
             stage_time_label.pack(anchor="center", padx=20, pady=10)
         else:
             print(f"Warning: Stage frame for state {self.state} does not exist!")
-
 
     def open_voltages(self):
         for widget in self.main_content_frame.winfo_children():
