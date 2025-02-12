@@ -50,13 +50,16 @@ donemsgnd: db 'By SBFFS   :3    ',0
 
 cseg
 ; These 'equ' must match the hardware wiring
-LCD_RS equ P1.3
-LCD_E  equ P1.4
-LCD_D4 equ P0.0
-LCD_D5 equ P0.1
-LCD_D6 equ P0.2
-LCD_D7 equ P0.3
-PWM_OUT EQU P1.0 
+LCD_RS		EQU P1.3
+LCD_E		EQU P1.4
+LCD_D4		EQU P0.0
+LCD_D5		EQU P0.1
+LCD_D6		EQU P0.2
+LCD_D7		EQU P0.3
+PWM_OUT		EQU P1.0 
+ClAW 		EQU p1.5
+alarm 		EQU p0.5
+
 
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
@@ -334,7 +337,7 @@ tempcalcforthermo:
 	mov x+2, #0
 	mov x+3, #0
 	Load_y(50800)
-;;	Load_y(40959)
+;	Load_y(40959)
 ;	Load_y(300)
 	lcall mul32
 ;	anl ADCCON0, #0xF0
@@ -576,6 +579,10 @@ Read_ADC:
 	orl a, R0
 	mov R0, A
 	ret
+	
+alarmsound:
+
+	ret
 		
 main:
 	mov sp, #0x7f
@@ -588,18 +595,20 @@ main:
     mov runtime+1, #0
     mov temp_soak, #0x50 ;I hate the 8051 -> 220 and 150 greator than 8 bits so must use 16 bits
     mov temp_soak+1, #0x01
-	mov time_soak, #0x50
+	mov time_soak, #0x60
 	mov Temp_refl, #0x20
 	mov Temp_refl+1, #0x02
 	mov Time_refl, #0x45
 	mov Temp_cool, #0x60
 	mov Temp_cool+1, #0x00
 	mov FSM1_state, #0x00
+	clr CLAW
+	setb alarm
+	
 		
 BeginMenu:
-	lcall StartMenu
-		
-ljmp NewDisplayeEnd
+	lcall StartMenu	
+	ljmp NewDisplayeEnd
 FSM1:
 	lcall Statmenu
 	
@@ -720,17 +729,19 @@ FSM1_state1:		;Stay in state 1 if temp<=150 ;RAMP TO SOAK;
     subb a, totaltemp+3
 	jnc FSM1_state1_check_for_temp
 	mov FSM1_state, #2
+	lcall alarmsound ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
 	ljmp FSM1_state3_done
 FSM1_state1_check_for_temp:
 	mov a, runtime
 	cjne a, #0x60, FSM1_state1_done
 	mov a, totaltemp+3
+	cjne a, #0x00, FSM1_state1_done
+	mov a, temp_safety
 	clr c
-	subb a, temp_safety+1
-   mov a, totaltemp+2
-   subb a, temp_safety
-	jc abortmessage
+	subb a, totaltemp+2
+	jnc abortmessage
 	ljmp FSM1_state1_done
+    
 abortmessage:
 	lcall abort
 	lcall abort
@@ -748,6 +759,7 @@ FSM1_state2:		;Stay in State 2 if Sec<=60 ;PREHEAT/SOAK;
 	clr c
 	subb a, sec
 	jnc FSM1_state2_done
+	lcall alarmsound ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
 	mov FSM1_state, #3
 FSM1_state2_done:
 	ljmp FSM1
@@ -757,13 +769,14 @@ FSM1_state3:		;Stay in state 3 if temp<=220 ;RAMP TO PEAK;
 					;Power =100% Sec = 0
 	cjne a, #3, FSM1_state4
 	mov pwm, #100
-	mov time, #0
+	mov sec, #0
     mov a, Temp_refl
     clr c
     subb a, totaltemp+2
     mov a, Temp_refl+1
     subb a, totaltemp+3
-	jnc FSM1_state3_done 
+	jnc FSM1_state3_done
+	lcall alarmsound ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
 	mov FSM1_state, #4
 FSM1_state3_done:
 	ljmp FSM1
@@ -777,6 +790,7 @@ FSM1_state4:		;Stay in state 4 if Sec <=45 :REFLOW:
 	mov a, Time_refl
 	subb a, sec
 	jnc FSM1_state4_done
+	lcall alarmsound ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
 	mov FSM1_state, #5
 FSM1_state4_done:
 	ljmp FSM1
@@ -786,12 +800,13 @@ FSM1_state5:		;Stay in state 5 if temp >= 60 ;cooling;
 					;Power set 0%
 	cjne a, #5, FSM1_state6
 	mov pwm, #0
+	setb CLAW
 	mov a, totaltemp+3
+	cjne a, #0x00, FSM1_state5_done
+	mov a, Temp_cool
 	clr c
-	subb a, Temp_cool+1
-	mov a, totaltemp+2
-	subb a, Temp_cool
-	jnc FSM1_state5_done
+	subb a, totaltemp+2
+	jc FSM1_state5_done
 	mov FSM1_state, #6
 FSM1_state5_done:
 	ljmp FSM1
@@ -799,6 +814,7 @@ FSM1_state6:
 
 	cjne a, #6, FSM1_state6_done
 	mov pwm, #0
+	clr ClAW
 	Set_Cursor(1,1)
 	Send_Constant_String(#donemsg)
 	Set_Cursor(2,1)
