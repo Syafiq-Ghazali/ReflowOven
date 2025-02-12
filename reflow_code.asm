@@ -769,7 +769,7 @@ FSM1_state3:		;Stay in state 3 if temp<=220 ;RAMP TO PEAK;
 					;Power =100% Sec = 0
 	cjne a, #3, FSM1_state4
 	mov pwm, #100
-	mov time, #0
+	mov sec, #0
     mov a, Temp_refl
     clr c
     subb a, totaltemp+2
