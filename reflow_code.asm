@@ -57,6 +57,7 @@ LCD_D5 equ P0.1
 LCD_D6 equ P0.2
 LCD_D7 equ P0.3
 PWM_OUT EQU P1.0 
+ClAW EQU p1.5
 
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
@@ -595,6 +596,8 @@ main:
 	mov Temp_cool, #0x60
 	mov Temp_cool+1, #0x00
 	mov FSM1_state, #0x00
+	clr CLAW
+	
 		
 BeginMenu:
 	lcall StartMenu
@@ -787,6 +790,7 @@ FSM1_state5:		;Stay in state 5 if temp >= 60 ;cooling;
 	cjne a, #5, FSM1_state6
 	mov pwm, #0
 	mov a, totaltemp+3
+	cpl CLAW
 	clr c
 	subb a, Temp_cool+1
 	mov a, totaltemp+2
@@ -799,6 +803,7 @@ FSM1_state6:
 
 	cjne a, #6, FSM1_state6_done
 	mov pwm, #0
+	clr ClAW
 	Set_Cursor(1,1)
 	Send_Constant_String(#donemsg)
 	Set_Cursor(2,1)
