@@ -49,7 +49,7 @@ Restmsgnd: db '*****RESTART****', 0
 
 Blank1:    db ' ', 0
 
-AbortMsg:  db '  ***ABORTED***  ',0
+AbortMsg:  db '  ***ABORTED***  ',0   
 AbortMsgnd:db '   **FAILED**    ',0
 celsius:   db 'C', 0
 donemsg:   db '!!! ALL DONE !!!!',0
@@ -601,9 +601,9 @@ main:
 	mov Temp_refl, #0x20
 	mov Temp_refl+1, #0x02
 	mov Time_refl, #0x45
-	mov Temp_cool, #0x60
+	mov Temp_cool, #0x10
 	mov Temp_cool+1, #0x00
-	mov FSM1_state, #0x00
+	mov FSM1_state, #0x05
 
 	
 		
