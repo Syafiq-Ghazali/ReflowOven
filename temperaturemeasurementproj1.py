@@ -1,101 +1,87 @@
-import numpy as np
-import sys, time, math
+import sys
+import time
 import pandas as pd
 import serial
 import os
 from tkinter import Tk, filedialog
+from openpyxl import load_workbook, Workbook
 
 # Initialize the Tkinter root window (hidden)
 root = Tk()
 root.withdraw()
 
 # Configure the serial port
-ser = serial.Serial(
-    port='COM5',
-    baudrate=115200,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE,
-    bytesize=serial.EIGHTBITS
-)
-ser.isOpen()
-
-# Buffer for averaging temperature values
-buffer = []
-buffer_size = 9
+try:
+    ser = serial.Serial(
+        port='COM5',
+        baudrate=115200,
+        parity=serial.PARITY_NONE,
+        stopbits=serial.STOPBITS_ONE,
+        bytesize=serial.EIGHTBITS,
+        timeout=1  # Read every second
+    )
+except serial.SerialException as e:
+    print(f"Error opening serial port: {e}")
+    sys.exit(1)
 
 # Global variables
 excel_file = None
-current_second = 0
+current_time = -15 # Hardcoded time that increments with each reading
 
 def choose_save_location():
+    """Ask user where to save the Excel file."""
     global excel_file
     file_path = filedialog.asksaveasfilename(
         defaultextension='.xlsx',
         filetypes=[("Excel files", "*.xlsx")],
         title="Choose location to save temperature log"
     )
-    if file_path:  # If user didn't cancel the dialog
+    if file_path:
         excel_file = file_path
+        initialize_excel_file()
         start_logging()
 
-def start_logging():
-    # Initialize the Excel file with headers if it doesn't exist
+def initialize_excel_file():
+    """Creates an Excel file with headers if it doesn't exist."""
     if not os.path.exists(excel_file):
-        df = pd.DataFrame(columns=["Time (s)", "Temperature (°C)", "Timestamp"])
-        df.to_excel(excel_file, index=False)
-    
-    # Start reading from the serial port
-    read_serial()
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Temperature Log"
+        ws.append(["Time (s)", "Temperature (°C)", "Timestamp"])
+        wb.save(excel_file)
 
-def read_serial():
-    global current_second, buffer
+def start_logging():
+    """Reads serial data, updates time, and logs it to Excel."""
+    global current_time
+
+    # Keep workbook open to reduce file access delay
+    wb = load_workbook(excel_file)
+    ws = wb.active
+
     try:
         while True:
-            line = ser.readline().decode('utf-8').strip()
-            parts = line.split(",")
+            line = ser.readline().decode('utf-8', errors='ignore').strip()
 
-            if len(parts) == 3:
-                temp_c = float(parts[0].strip())
-                new_state = float(parts[1].strip())
-                t = float(parts[2].strip())
+            if line:  # If valid data is received
+                try:
+                    temperature = float(line)  # Convert serial input to float
+                    current_time += 1  # Increment hardcoded time counter
+                    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")  # Current time
 
-                # Take the average of 9 values
-                buffer.append(temp_c)
-                if len(buffer) == buffer_size:
-                    temp_c_avg = sum(buffer) / buffer_size
-                    buffer = []  # Reset buffer after using it
+                    print(f"Logging: Time={current_time}, Temp={temperature}")
 
-                    print(f"temp: {temp_c_avg}, state: {new_state}, time: {t}")
-                    log_to_excel(temp_c_avg)
+                    # Append row directly without closing/reopening file
+                    ws.append([current_time, temperature, timestamp])
+                    wb.save(excel_file)  # Save after each entry
 
-            time.sleep(1)  # Adjust the sleep time as needed
+                except ValueError:
+                    print(f"Invalid data received: {line}")
 
     except KeyboardInterrupt:
         print("Logging stopped by user.")
     finally:
         ser.close()
+        wb.close()  # Close workbook when done
 
-def log_to_excel(temperature):
-    """
-    Logs the timestamp (in seconds) and temperature to an Excel file.
-    """
-    global current_second
-    current_second += 1  # Increment the second counter
-    
-    data = {
-        "Time (s)": [current_second],
-        "Temperature (°C)": [temperature],
-        "Timestamp": [time.strftime("%Y-%m-%d %H:%M:%S")]
-    }
-    df = pd.DataFrame(data)
-
-    try:
-        # Append to the existing file
-        existing_df = pd.read_excel(excel_file)
-        updated_df = pd.concat([existing_df, df], ignore_index=True)
-        updated_df.to_excel(excel_file, index=False)
-    except Exception as e:
-        print(f"Error saving to Excel: {e}")
-
-# Ask the user where to save the file
+# Start process
 choose_save_location()
