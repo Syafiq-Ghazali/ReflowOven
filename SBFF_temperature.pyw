@@ -733,7 +733,7 @@ class MainApp:
     def setup_graph(self):
         #plt.close('all')
 
-        self.xsize = 250  # Define X-axis size
+        self.xsize = 450  # Define X-axis size
         self.fig, self.ax = plt.subplots(figsize=(15, 10))  # Adjust width and height
 
         # change colour 
@@ -754,12 +754,12 @@ class MainApp:
         self.ax.tick_params(axis='both', labelsize=5, colors='white')  
 
         # Increase Number of Gridlines
-        self.ax.xaxis.set_major_locator(ticker.MultipleLocator(5))  # Grid every 5 seconds
-        self.ax.yaxis.set_major_locator(ticker.MultipleLocator(10))  # Grid every 10°C
+        self.ax.xaxis.set_major_locator(ticker.MultipleLocator(50))  # Grid every 5 seconds
+        self.ax.yaxis.set_major_locator(ticker.MultipleLocator(20))  # Grid every 10°C
 
         # Add Minor Gridlines
-        self.ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))  # Minor grid every 1s
-        self.ax.yaxis.set_minor_locator(ticker.MultipleLocator(5))  # Minor grid every 5°C
+        self.ax.xaxis.set_minor_locator(ticker.MultipleLocator(10))  # Minor grid every 1s
+        self.ax.yaxis.set_minor_locator(ticker.MultipleLocator(10))  # Minor grid every 5°C
 
         self.ax.grid(True, which='major', color='gray', linewidth=1)
         self.ax.grid(True, which='minor', color='gray', linestyle=':', linewidth=0.5)
@@ -803,31 +803,102 @@ class MainApp:
         self.canvas.draw()
         self.canvas.get_tk_widget().pack(fill=BOTH, expand=True)
 
+        self.fig.canvas.mpl_connect("motion_notify_event", self.on_hover)
+
     """HOVER DISPLAY"""
 
     def on_hover(self, event):
-        if event.inaxes == self.ax:  # Check if mouse is inside the graph area
-            x_cursor = event.xdata  # Get x-coordinate of cursor
-            if x_cursor is None or len(self.xdata) == 0:
+        if not event.inaxes == self.ax:  # If mouse not in graph area
+            if self.annot.get_visible():
+                self.annot.set_visible(False)
+                self.fig.canvas.draw_idle()
+            return
+
+        # Get current x coordinate
+        x_cursor = event.xdata
+
+        # Basic validation
+        if x_cursor is None or len(self.xdata) == 0:
+            if self.annot.get_visible():
+                self.annot.set_visible(False)
+                self.fig.canvas.draw_idle()
+            return
+
+        # Convert lists to numpy arrays for efficient computation
+        x_array = np.array(self.xdata)
+        
+        # Define search window (adjust these values to change hover area size)
+        window_size =   5# Points to consider on each side
+        search_radius = 5  # Time units to search around cursor
+        
+        # Find all points within search radius
+        mask = np.abs(x_array - x_cursor) <= search_radius
+        if not np.any(mask):
+            return
+            
+        # Get indices of points within range
+        indices_in_range = np.where(mask)[0]
+        
+        # Find center point (closest to cursor)
+        center_idx = np.abs(x_array - x_cursor).argmin()
+        
+        # Get window of points centered on nearest point
+        start_idx = max(0, center_idx - window_size)
+        end_idx = min(len(x_array), center_idx + window_size + 1)
+        
+        # Calculate average values in window
+        x_window = x_array[start_idx:end_idx]
+        
+        if self.temp_type.get() == "C":
+            y_array = np.array(self.ydata_c)
+        else:
+            y_array = np.array(self.ydata_f)
+            
+        y_window = y_array[start_idx:end_idx]
+        
+        # Calculate smoothed values
+        x_smooth = np.mean(x_window)
+        y_smooth = np.mean(y_window)
+        
+        # Calculate min/max temperature in window for display
+        y_min = np.min(y_window)
+        y_max = np.max(y_window)
+        
+        # Only update if position has changed significantly
+        if hasattr(self, 'last_shown_position'):
+            if abs(x_smooth - self.last_shown_position[0]) < 0.2 and \
+            abs(y_smooth - self.last_shown_position[1]) < 0.2:
                 return
 
-            # Find the nearest x-value in self.xdata
-            nearest_idx = min(range(len(self.xdata)), key=lambda i: abs(self.xdata[i] - x_cursor))
-            
-            if self.temp_type.get() =="C":
-                x_nearest, y_nearest = self.xdata[nearest_idx], self.ydata_c[nearest_idx]
-            elif self.temp_type.get() == "F":
-                x_nearest, y_nearest = self.xdata[nearest_idx], self.ydata_f[nearest_idx]
-
-            # Update annotation position and text
-            self.annot.xy = (x_nearest, y_nearest)
-            self.annot.set_text(f"Time: {x_nearest:.1f}s\nTemp: {y_nearest:.1f}°{self.temp_type.get()}")
+        self.last_shown_position = (x_smooth, y_smooth)
+        
+        # Update annotation with average, min, and max values
+        self.annot.xy = (x_smooth, y_smooth)
+        self.annot.set_text(f"Time: {x_smooth:.1f}s\n"
+                        f"Temp: {y_smooth:.1f}°{self.temp_type.get()}\n"
+                        f"Range: {y_min:.1f} - {y_max:.1f}°{self.temp_type.get()}")
+        
+        # Set annotation visibility
+        if not self.annot.get_visible():
             self.annot.set_visible(True)
-
-            self.fig.canvas.draw_idle()  # Redraw to show annotation
+        
+        # Position the annotation to avoid going off screen
+        px = self.fig.dpi/72.  # points per pixel
+        bbox = self.annot.get_bbox_patch()
+        bbox_data = bbox.get_extents()
+        
+        # Check if annotation would go off the right side of the plot
+        if x_smooth + (bbox_data.width/px) > self.ax.get_xlim()[1]:
+            self.annot.set_x(-25)  # Offset to the left
         else:
-            self.annot.set_visible(False)
+            self.annot.set_x(25)  # Default offset to the right
+
+        # Update the canvas
+        try:
             self.fig.canvas.draw_idle()
+        except Exception as e:
+            print(f"Error updating canvas: {e}")
+
 
     def init_plot(self):
         self.line_c.set_data([],[])
