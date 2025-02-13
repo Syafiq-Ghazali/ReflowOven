@@ -601,9 +601,9 @@ main:
 	mov Temp_refl, #0x20
 	mov Temp_refl+1, #0x02
 	mov Time_refl, #0x45
-	mov Temp_cool, #0x10
+	mov Temp_cool, #0x60
 	mov Temp_cool+1, #0x00
-	mov FSM1_state, #0x05
+	mov FSM1_state, #0x00
 
 	
 		
