@@ -16,7 +16,7 @@ import tkinter.filedialog as filedialog
 CONFIGURE SERIAL PORT 
 """
 ser = serial.Serial(
-port='COM5',
+port='COM7',
     baudrate=115200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
@@ -43,13 +43,17 @@ class MainApp:
 
         self.state=0.0
         self.time=0.0
-
         self.buffer = []
-
         self.temp_type = StringVar(value = "C") #set temperature initially in celcius
 
         # Cleanup after closing the window
         self.window.protocol("WM_DELETE_WINDOW", self.close_window)
+
+        #initialize plot related variables
+        self.xdata = []
+        self.ydata_c = []
+        self.ydata_f = []
+        self.timer = None
 
         # Load Images
         self.load_images()
@@ -85,31 +89,45 @@ class MainApp:
     data_gen.t = -1
         """
     
-        while True:
-            line = ser.readline().decode('utf-8').strip()
-            parts= line.split(",")
+        line = ser.readline().decode('utf-8').strip()
+        parts= line.split(",")
 
-            if len(parts) == 3:
-                try:
-                    temp_c = float(parts[0].strip())
-                    new_state = float(parts[1].strip())
-                    t = float(parts[2].strip())
-                    self.buffer.append(temp_c)
-                    if len(self.buffer) == 9:
-                        temp_c = sum(self.buffer) / 9
+        if len(parts) == 3:
+            try:
+                temp_c = float(parts[0].strip())
+                new_state = float(parts[1].strip())
+                t = float(parts[2].strip())
 
-                    print(f"temp:{temp_c}, state:{self.state}, time:{t}")
-                    temp_f = (temp_c * 9/5)+32
+                #take the average of 9 values
+                self.buffer.append(temp_c)
+                if len(self.buffer) == 9:
+                    temp_c = sum(self.buffer) / 9
+                    self.buffer = [] #reset buffer after using it
 
-                    if new_state != self.state:
-                        self.state = new_state
-                        self.time = t
-                        self.window.after(0, self.dial_logic)
-                        self.window.after(0, self.stage_time_logic)
+                print(f"temp:{temp_c}, state:{self.state}, time:{t}")
+                temp_f = (temp_c * 9/5)+32
 
-                    yield temp_c, temp_f, t
-                except ValueError:
-                    print(f"Non numeric data recieved: {line}")
+                if new_state != self.state:
+                    self.state = new_state
+                    self.time = t
+                    self.window.after(0, self.dial_logic)
+                    self.window.after(0, self.stage_time_logic)
+
+                self.xdata.append(t)
+                self.ydata_c.append(temp_c)
+                self.ydata_f.append(temp_f)
+
+                if t>self.xsize:
+                    self.ax.set_xlim(t-self.xsize, t)
+
+                self.line_c.set_data(self.xdata, self.ydata_c)
+                self.line_f.set_data(self.xdata, self.ydata_f)
+
+                self.fig.canvas.draw_idle()
+
+
+            except ValueError:
+                print(f"Non numeric data recieved: {line}")
         
 
     # Loading in Images
@@ -670,7 +688,7 @@ class MainApp:
     """GRAPH"""
 
     """SCROLLING"""
-
+    '''
     def run(self, data):
         #if data is None:
         #    return self.line_c, self.line_f
@@ -687,11 +705,12 @@ class MainApp:
         self.line_f.set_data(self.xdata, self.ydata_f)
 
         return self.line_c, self.line_f,
-
-    def on_close_figure(self, event):
+    '''
+    ''' def on_close_figure(self, event):
         sys.exit(0)
+    '''
 
-    """GRAPH SETUP"""
+    #GRAPH SETUP
 
     def update_axes(self):
         # Update y-axis limits and grid settings based on the temp_type
@@ -719,8 +738,11 @@ class MainApp:
 
         # change colour 
 
-        self.ax.set_facecolor("black")  # Change background color of the graph
-        self.fig.patch.set_facecolor("black")  # Change outer figure background
+        self.ax.set_facecolor("black") 
+        self.fig.patch.set_facecolor("black")
+
+        # Initialize data list
+        self.xdata, self.ydata_c, self.ydata_f = [], [], []
 
         # Initialize line plot
         self.line_c, = self.ax.plot([], [], lw=2, label = "Temperature (°C)", color = 'red')
@@ -728,7 +750,7 @@ class MainApp:
     
         self.ax.set_ylim(0, 250)
         self.ax.set_xlim(0, self.xsize)
-        self.ax.grid(color='grey', linewidth=0.5, )
+        self.ax.grid(color='grey', linewidth=0.5)
         self.ax.tick_params(axis='both', labelsize=5, colors='white')  
 
         # Increase Number of Gridlines
@@ -747,11 +769,7 @@ class MainApp:
         # Set labels
         self.ax.set_xlabel("TIME (s)", **hfont, fontsize=25, color='white')
         self.ax.set_ylabel(f"TEMPERATURE (°C)", **hfont, fontsize=25, color='white')
-
         self.ax.set_title("REFLOW OVEN TEMPERATURE READINGS", **hfont, fontsize=30, color='white')
-
-        # Initialize data list
-        self.xdata, self.ydata_c, self.ydata_f = [], [], []
 
         # Create an annotation (cursor temperature display)
         self.annot = self.ax.annotate("", xy=(0, 0), xytext=(25, 25),
@@ -762,7 +780,7 @@ class MainApp:
         self.annot.set_visible(False)  # Hide initially
 
         # Start graph animation
-        self.ani = animation.FuncAnimation(
+        '''self.ani = animation.FuncAnimation(
             self.fig, 
             self.run, 
             self.data_gen, 
@@ -770,9 +788,15 @@ class MainApp:
             interval=100, 
             repeat=False,
             save_count=100  # Add this line to specify max frames to cache
+        )'''
+
+        self.ani = animation.FuncAnimation(
+            self.fig,
+            self.update_plot,
+            init_func=self.init_plot,
+            interval=100,
+            blit=True
         )
-        # Connect hover event
-        self.fig.canvas.mpl_connect("motion_notify_event", self.on_hover)
 
         # Embed Matplotlib figure in Tkinter
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.middle_graph_frame)
@@ -804,6 +828,63 @@ class MainApp:
         else:
             self.annot.set_visible(False)
             self.fig.canvas.draw_idle()
+
+    def init_plot(self):
+        self.line_c.set_data([],[])
+        self.line_f.set_data([],[])
+        return self.line_c, self.line_f
+
+    def update_plot(self, frame):
+        try:
+            if ser.in_waiting:
+                line = ser.readline().decode('utf-8').strip()
+                parts = line.split(",")
+
+                if len(parts) == 3:
+                    try:
+                        temp_c = float(parts[0].strip())
+                        new_state = float(parts[1].strip())
+                        t = float(parts[2].strip())
+
+                        # Buffer handling
+                        self.buffer.append(temp_c)
+                        if len(self.buffer) == 9:
+                            temp_c = sum(self.buffer) / 9
+                            self.buffer = []
+
+                        temp_f = (temp_c * 9/5) + 32
+
+                        # Update state if changed
+                        if new_state != self.state:
+                            self.state = new_state
+                            self.time = t
+                            self.window.after(0, self.dial_logic)
+                            self.window.after(0, self.stage_time_logic)
+
+                        # Update data lists
+                        self.xdata.append(t)
+                        self.ydata_c.append(temp_c)
+                        self.ydata_f.append(temp_f)
+
+                        # Update plot window
+                        if t > self.xsize:
+                            self.ax.set_xlim(t-self.xsize, t)
+
+                        # Update line data
+                        self.line_c.set_data(self.xdata, self.ydata_c)
+                        self.line_f.set_data(self.xdata, self.ydata_f)
+
+                        print(f"Updated plot - Time: {t}, Temp C: {temp_c}, Temp F: {temp_f}")
+
+                    except ValueError as e:
+                        print(f"Error parsing values: {e}")
+                        print(f"Raw line: {line}")
+
+        except Exception as e:
+            print(f"Error in update_plot: {e}")
+
+        return self.line_c, self.line_f
+
 
 if __name__ == "__main__": 
     window = ctk.CTk()
