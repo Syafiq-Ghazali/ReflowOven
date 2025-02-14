@@ -681,7 +681,7 @@ Tempsoakbutton:
 Tempreflbutton:
 	lcall ADC_to_PB
 	mov c, PB3
-	jc restart
+	jc Preset1
     mov a, Temp_refl
     add a, #1
     da a
@@ -693,6 +693,30 @@ Tempreflbutton:
     mov Temp_refl+1, a
     cjne a, #0x10, restart
     mov Temp_refl+1, #0x00
+    
+    
+Preset1:
+	lcall ADC_to_PB
+	mov c, PB1
+	jc Preset2
+    mov temp_soak, #0x50
+    mov temp_soak+1, #0x01
+	mov time_soak, #0x60
+	mov Temp_refl, #0x20
+	mov Temp_refl+1, #0x02
+	mov Time_refl, #0x45
+	
+Preset2:
+	lcall ADC_to_PB
+	mov c, PB0
+	jc restart
+    mov temp_soak, #0x00
+    mov temp_soak+1, #0x00
+	mov time_soak, #0x00
+	mov Temp_refl, #0x00
+	mov Temp_refl+1, #0x00
+	mov Time_refl, #0x00
+	
     
 restart:
 	lcall ADC_to_PB
