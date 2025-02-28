@@ -634,6 +634,14 @@ NewDisplayeEnd:
 	lcall putchar
 	mov a, #'\r'
 	lcall putchar
+	mov R2, #250
+	lcall waitms
+	mov R2, #250
+	lcall waitms
+	mov R2, #250
+	lcall waitms
+	mov R2, #250
+	lcall waitms
 	
 
 TimeSoakbutton:
