@@ -98,12 +98,8 @@ class MainApp:
                 new_state = float(parts[1].strip())
                 t = float(parts[2].strip())
 
-                #take the average of 9 values
                 self.buffer.append(temp_c)
-                if len(self.buffer) == 9:
-                    temp_c = sum(self.buffer) / 9
-                    self.buffer = [] #reset buffer after using it
-
+                
                 print(f"temp:{temp_c}, state:{self.state}, time:{t}")
                 temp_f = (temp_c * 9/5)+32
 
