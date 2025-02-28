@@ -77,7 +77,7 @@ class MainApp:
     """GENERATE DATA VALUES TO PLOT"""
     
     def data_gen(self):
-        """
+        """ Generate a sine wave function for debugging:
         t = self.data_gen.t
         while True:
             t+=1
