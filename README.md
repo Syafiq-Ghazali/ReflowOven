@@ -1,4 +1,4 @@
-# Reflow Oven Controller (ARM Assembly)
+# Reflow Oven Controller (8051 Assembly)
 
 ## Overview
 This project implements a **multi-stage reflow oven controller** written in **8051 Assembly**. The oven cycles through temperature stages used in PCB soldering. The system monitors temperature and switches between stages automatically. Transitions are based on time and temperature thresholds.
