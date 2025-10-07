@@ -12,5 +12,3 @@ This project implements a **multi-stage reflow oven controller** written in **80
 
 ## How It Works
 The 8051 assembly code handles temperature reading and stage control directly on the microcontroller. A Python Tkinter interface displays the current temperature, stage, and process status in real time. The oven’s heater is regulated through a PWM channel
-
-## File Structure
